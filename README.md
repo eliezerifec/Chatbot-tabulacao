@@ -1,119 +1,97 @@
-# Codificador de Pesquisas com IA 🤖
+# Codificador de Pesquisas com IA
 
-Plataforma de codificação automática de respostas abertas usando **Llama 3** rodando **100% localmente** via Ollama.
+Plataforma de codificacao automatica de respostas abertas com interface web em Streamlit.
 
----
-
-## 📋 Pré-requisitos
+## Pre-requisitos
 
 ### 1. Python 3.10+
+
 Download: https://python.org
 
-### 2. Ollama (roda o modelo local)
+### 2. Ollama
+
 Download: https://ollama.com
 
-Após instalar, abra o terminal e execute:
+Apos instalar, abra o terminal e execute:
+
 ```bash
-# Baixar o modelo Llama 3 (uma vez só, ~4GB)
+# Baixar o modelo Llama 3 (uma vez so, ~4GB)
 ollama pull llama3
 
-# Iniciar o servidor (deixe rodando em segundo plano)
+# Iniciar o servidor
 ollama serve
 ```
 
----
-
-## 🚀 Instalação
+## Instalacao
 
 ```bash
 # 1. Clone ou baixe este projeto
 
-# 2. Instale as dependências
+# 2. Instale as dependencias
 pip install -r requirements.txt
 
-# 3. Execute a aplicação
-python app.py
+# 3. Execute a aplicacao web
+streamlit run app.py
 ```
 
----
+## Como usar
 
-## 🎯 Como usar
+1. Abra o app Streamlit e envie sua planilha `.xlsx` ou `.csv`
+2. Escolha a coluna com as respostas abertas
+3. Escolha a coluna de saida ou use uma nova coluna
+4. Opcionalmente, importe codificacoes anteriores em `.json` ou `.xlsx`
+5. Opcionalmente, adicione categorias separadas por virgula
+6. Escreva o contexto da pergunta para guiar o modelo
+7. Clique em `Iniciar codificacao`
+8. Exporte o resultado ao final
 
-### Passo a passo:
+## Formato dos arquivos de codigo
 
-1. **Clique em "Abrir Planilha"** → selecione seu `.xlsx` ou `.csv`
-2. **Escolha a coluna** com as respostas abertas
-3. **Escolha a coluna de saída** (ou crie uma nova)
-4. **(Opcional) Carregue codificações anteriores** → arquivo `.json` ou `.xlsx`
-   - JSON: `{"alegre": "alegria", "muito bom": "positivo"}`
-   - Excel: duas colunas — `resposta` | `categoria`
-5. **(Opcional) Adicione categorias** separadas por vírgula
-6. **Escreva o contexto** da pergunta para guiar o modelo
-7. **Clique em "Iniciar Codificação"**
-8. **Exporte** o resultado quando terminar
+### JSON
 
----
-
-## 📁 Formato dos arquivos de código
-
-### JSON (recomendado para reuso):
 ```json
 {
   "alegre": "alegria",
   "feliz": "alegria",
   "muito bom": "positivo",
-  "ótimo": "positivo",
+  "otimo": "positivo",
   "entediante": "negativo"
 }
 ```
 
-### Excel (.xlsx):
-| resposta  | categoria |
-|-----------|-----------|
-| alegre    | alegria   |
-| feliz     | alegria   |
-| ótimo     | positivo  |
+### Excel (.xlsx)
 
----
+| resposta | categoria |
+|----------|-----------|
+| alegre   | alegria   |
+| feliz    | alegria   |
+| otimo    | positivo  |
 
-## ⚙️ Configurações avançadas
+## Configuracoes avancadas
 
 No arquivo `codificador.py`:
 
 ```python
-MODELO = "llama3"        # Troque por: llama3:8b, mistral, gemma3, etc.
+MODELO = "llama3"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 ```
 
----
+## Dicas
 
-## 🔧 Modelos alternativos (todos gratuitos)
+- Quanto mais exemplos anteriores voce fornecer, mais consistente sera a codificacao
+- O sistema usa cache automatico, entao respostas identicas nao chamam o modelo novamente
+- Descreva bem o contexto da pergunta para respostas mais precisas
 
-| Modelo   | Tamanho | Velocidade | Qualidade |
-|----------|---------|------------|-----------|
-| llama3   | 4.7GB   | Média      | ⭐⭐⭐⭐⭐    |
-| mistral  | 4.1GB   | Rápida     | ⭐⭐⭐⭐     |
-| gemma3   | 5.2GB   | Média      | ⭐⭐⭐⭐⭐    |
-| phi3     | 2.3GB   | Muito rápida | ⭐⭐⭐   |
+## Problemas comuns
 
----
+**"Ollama nao esta rodando"**
 
-## 💡 Dicas
+Execute `ollama serve` no terminal antes de abrir o app.
 
-- **Quanto mais exemplos anteriores você fornecer**, mais consistente será a codificação
-- O sistema usa **cache automático** — respostas idênticas não chamam o modelo de novo
-- **Descreva bem o contexto** da pergunta para respostas mais precisas
-- Para grandes volumes (1000+ respostas), prefira modelos menores como `phi3` para velocidade
+**"Modelo nao encontrado"**
 
----
+Execute `ollama pull llama3` no terminal.
 
-## 🐛 Problemas comuns
+**"Streamlit nao encontrado"**
 
-**"Ollama não está rodando"**
-→ Execute `ollama serve` no terminal antes de abrir o app
-
-**"Modelo não encontrado"**
-→ Execute `ollama pull llama3` no terminal
-
-**Tkinter não instalado**
-→ `sudo apt-get install python3-tk` (Linux) ou reinstale Python com tcl/tk (Windows)
+Instale as dependencias com `pip install -r requirements.txt`.

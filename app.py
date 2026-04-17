@@ -367,7 +367,7 @@ def main():
     render_sidebar()
 
     st.title("Codificador de Pesquisas")
-    st.caption("Versao adaptada para Streamlit a partir da interface Tkinter.")
+    st.caption("Interface web em Streamlit para codificacao de pesquisas.")
 
     render_top_metrics()
     render_upload_section()
