@@ -25,7 +25,7 @@ SOURCE_DIR = _find_source_dir()
 if str(SOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIR))
 
-from codificador import TIPOS_PERGUNTA, CodificadorIA  # noqa: E402
+from codificador import TIPOS_PERGUNTA, CodificadorIA, _get_api_key  # noqa: E402
 
 
 st.set_page_config(
@@ -118,6 +118,11 @@ def render_sidebar():
     with st.sidebar:
         st.header("Configuracao")
         st.caption(f"Fonte detectada: `{SOURCE_DIR}`")
+        if not _get_api_key():
+            st.warning(
+                "Configure `OPENAI_API_KEY` em `st.secrets`, variavel de ambiente "
+                "ou arquivo `.env` para habilitar a codificacao."
+            )
         st.text_area(
             "Contexto global",
             key="contexto_global",

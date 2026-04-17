@@ -23,13 +23,21 @@ try:
 except ImportError:
     pass  # sem dotenv, lê das variáveis de ambiente do sistema
 
-API_KEY = os.getenv("OPENAI_API_KEY", "")
-if not API_KEY:
-    raise RuntimeError(
-        "Chave OpenAI não encontrada.\n"
-        "Crie um arquivo .env na pasta do projeto com:\n"
-        "  OPENAI_API_KEY=sk-..."
-    )
+def _get_api_key() -> str:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if api_key:
+        return api_key
+
+    try:
+        import streamlit as st
+
+        secret_value = st.secrets.get("OPENAI_API_KEY", "")
+        if isinstance(secret_value, str) and secret_value.strip():
+            return secret_value.strip()
+    except Exception:
+        pass
+
+    return ""
 
 # ── Modelos por agente ────────────────────────────────────────────────────────
 # Agente 1 (Categorizador): cria as categorias — modelo mais inteligente
@@ -204,7 +212,13 @@ class CodificadorIA:
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
-            self._client = OpenAI(api_key=API_KEY)
+            api_key = _get_api_key()
+            if not api_key:
+                raise RuntimeError(
+                    "Chave OpenAI nao encontrada. Configure OPENAI_API_KEY "
+                    "em variavel de ambiente, arquivo .env ou Streamlit secrets."
+                )
+            self._client = OpenAI(api_key=api_key)
         return self._client
 
     # Modelos de raciocínio (o1, o3, o4-*) não aceitam temperature nem max_tokens

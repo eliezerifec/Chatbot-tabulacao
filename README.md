@@ -34,6 +34,14 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+### Streamlit Cloud
+
+Se for publicar no Streamlit Cloud, adicione este segredo em `App settings > Secrets`:
+
+```toml
+OPENAI_API_KEY = "sk-..."
+```
+
 ## Como usar
 
 1. Abra o app Streamlit e envie sua planilha `.xlsx` ou `.csv`
