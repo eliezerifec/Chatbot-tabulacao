@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════════════
+# PATCH PARA app.py — adicionar botão "Pipeline" na sidebar
+# ═══════════════════════════════════════════════════════════════════════
+#
+# 1. No topo do app.py, adicione o import:
+#
+#    from tela_tabulacao import TelaTabulacao
+#
+#
+# 2. Dentro do método _sidebar(self), substitua a linha:
+#
+#    nav = [("o", False), ("=", True), ("*", False), ("+", False), ("~", False)]
+#
+#    por:
+#
+#    nav = [("o", False), ("=", True), ("*", False), ("+", False), ("~", False), ("T", False)]
+#
+#    (O "T" será o ícone do Pipeline de Tabulação)
+#
+#
+# 3. Ainda em _sidebar(self), após o loop dos ícones de navegação,
+#    adicione o bind de clique no último ícone:
+#
+#    # Botão do Pipeline — pega o último frame da nav
+#    frames_nav = [w for w in sb.winfo_children()
+#                  if isinstance(w, tk.Frame) and w.winfo_height() == 52]
+#    if frames_nav:
+#        frames_nav[-1].bind(
+#            "<Button-1>",
+#            lambda e: TelaTabulacao(self.root, self.codificador, self.banco)
+#        )
+#
+#
+# OU — opção mais simples: adicionar um botão dedicado no _sec_actions:
+#
+# Na seção _sec_actions(self), após o botão de exportar, adicione:
+#
+#    btn_pipeline = tk.Button(
+#        actions_frame,
+#        text="📊 Pipeline: Tabulação + PPT",
+#        bg="#7c3aed", fg="white",
+#        font=("Segoe UI", 10, "bold"),
+#        relief="flat", padx=14, pady=8,
+#        cursor="hand2",
+#        activebackground="#6d28d9", activeforeground="white",
+#        command=lambda: TelaTabulacao(self.root, self.codificador, self.banco)
+#    )
+#    btn_pipeline.pack(side=tk.LEFT, padx=(8, 0))
+#
+# ═══════════════════════════════════════════════════════════════════════
+# INSTALAÇÃO DE DEPENDÊNCIAS (rodar uma vez no terminal):
+# ═══════════════════════════════════════════════════════════════════════
+#
+#    pip install python-pptx openpyxl pandas
+#
+# ═══════════════════════════════════════════════════════════════════════
+# ARQUIVOS QUE DEVEM FICAR NA MESMA PASTA QUE app.py:
+# ═══════════════════════════════════════════════════════════════════════
+#
+#    app.py              ← já existe
+#    codificador.py      ← já existe
+#    tela_revisao.py     ← já existe
+#    aprendizado.py      ← já existe
+#    config.py           ← já existe
+#    tabulador.py        ← NOVO
+#    gerador_ppt.py      ← NOVO
+#    tela_tabulacao.py   ← NOVO
+#
+# ═══════════════════════════════════════════════════════════════════════

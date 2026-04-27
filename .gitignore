@@ -1,0 +1,14 @@
+# Chaves e segredos — NUNCA subir
+.env
+
+# Banco local de aprendizado
+dados/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Arquivos temporários
+*.xlsx
+*.csv

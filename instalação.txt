@@ -1,0 +1,38 @@
+1° Método: Abrir pelo terminal (cmd)
+
+- Abra o cmd e digite o comando: setx PATH "%PATH%;C:\Users\%USERNAME%\Documents\atalhos (troque seu USERNAME)
+- Crie a pasta "atalhos" na sua pasta de Documentos dentro do explorador de arquivo
+- Crie um arquivo txt vazio e salve o código
+
+@echo off
+chcp 1252 > nul
+setlocal
+ 
+set "PROJ=R:\000_Armazenamento IFec\Processo Interno\Automação\Codificação\Agente Codificador\codificador_2"
+ 
+if not exist "%PROJ%\" (
+  echo Nao encontrei a pasta: "%PROJ%"
+  exit /b 1
+)
+ 
+if not exist "%PROJ%\.venv\Scripts\activate.bat" (
+  echo Nao encontrei o venv em "%PROJ%\.venv"
+  exit /b 1
+)
+ 
+pushd "%PROJ%" || exit /b 1
+call ".venv\Scripts\activate.bat" || exit /b 1
+python "app.py"
+popd
+
+- Clique em "Salvar como", salve com o nome de codificador.bat, selecione o tipo de codificação "ANSI".
+
+- Para rodar o programa basta escrever "codificardor" no seu terminal (cmd) ou no executar
+
+_________________________________________________________________________________________________________________________
+
+2° Método: Gerar um executável na área de trabalho
+
+- Clique com o botão direito no arquivo AbrirCodificador.bat
+- Enviar para
+- Área de trabalho (criar atalho)
