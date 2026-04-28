@@ -633,7 +633,7 @@ def _run_coding(
             respostas,
             cfg["type_key"],
             cfg["mode_key"],
-            categorias_imputadas=cats_imp,
+            categorias_imputacao=cats_imp,
             contexto=context,
         )
 
