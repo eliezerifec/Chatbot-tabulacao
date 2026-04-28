@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 streamlit>=1.32.0
 openai>=1.0.0
 pandas>=2.0.0
@@ -7,3 +8,13 @@ python-dotenv>=1.0.0
 supabase>=2.0.0
 python-pptx>=0.6.21
 Pillow>=10.0.0
+=======
+# Instale com: py -m pip install -r requirements.txt
+
+pandas>=2.0.0
+openpyxl>=3.1.0
+openai>=1.0.0
+supabase>=1.2.0
+python-dotenv>=1.0.0
+streamlit>=1.44.0
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e

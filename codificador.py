@@ -14,8 +14,11 @@ import random
 from difflib import SequenceMatcher
 from openai import OpenAI
 from aprendizado import BancoAprendizado
+<<<<<<< HEAD
 from pathlib import Path
 from biblioteca_codificacao import BibliotecaCodificacao
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 # Lê do arquivo .env (nunca sobe para o GitHub)
@@ -25,6 +28,7 @@ try:
 except ImportError:
     pass  # sem dotenv, lê das variáveis de ambiente do sistema
 
+<<<<<<< HEAD
 API_KEY = os.getenv("OPENAI_API_KEY", "")
 if not API_KEY:
     raise RuntimeError(
@@ -36,6 +40,23 @@ DICIONARIO_CODIFICACAO_PATH = os.getenv(
     "DICIONARIO_CODIFICACAO_PATH",
     str(Path(__file__).resolve().parent.parent / "Dicionário" / "Dicionario.xlsx")
 )
+=======
+def _get_api_key() -> str:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if api_key:
+        return api_key
+
+    try:
+        import streamlit as st
+
+        secret_value = st.secrets.get("OPENAI_API_KEY", "")
+        if isinstance(secret_value, str) and secret_value.strip():
+            return secret_value.strip()
+    except Exception:
+        pass
+
+    return ""
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
 # ── Modelos por agente ────────────────────────────────────────────────────────
 # Agente 1 (Categorizador): cria as categorias — modelo mais inteligente
@@ -162,21 +183,45 @@ Exemplos de classificação:
 
 
 def _formatar_few_shot(exemplos: list) -> str:
+<<<<<<< HEAD
+=======
+    """
+    Formata exemplos do banco de aprendizado para injeção nos prompts.
+
+    Mostra separadamente:
+      - Exemplos onde a IA ERROU e o humano corrigiu  ← mais instrutivos
+      - Exemplos aprovados pelo humano
+
+    Isso ensina ao modelo exatamente onde ele costuma errar
+    e qual é o raciocínio correto esperado pelos pesquisadores.
+    """
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
     if not exemplos:
         return ""
 
     corrigidos = [e for e in exemplos if not e.get("correto", True)]
+<<<<<<< HEAD
     aprovados = [e for e in exemplos if e.get("correto", True)]
+=======
+    aprovados  = [e for e in exemplos if e.get("correto", True)]
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     linhas = []
 
     if corrigidos:
         linhas.append("\nExemplos onde a IA ERROU — aprenda com estes casos:")
         for e in corrigidos:
+<<<<<<< HEAD
             cat_ia = e.get("categoria_ia", "?")
             cat_ok = e["categoria"]
             linhas.append(
                 f'  "{e["resposta"]}"'
+=======
+            cat_ia  = e.get("categoria_ia", "?")
+            cat_ok  = e["categoria"]
+            linhas.append(
+                f'  "{e["resposta"]}"' +
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 f'  [IA disse: {cat_ia}]  →  CORRETO: {cat_ok}'
             )
 
@@ -188,6 +233,7 @@ def _formatar_few_shot(exemplos: list) -> str:
     return "\n".join(linhas) + "\n"
 
 
+<<<<<<< HEAD
 def _formatar_few_shot_biblioteca(exemplos: list) -> str:
     if not exemplos:
         return ""
@@ -215,12 +261,31 @@ class CodificadorIA:
         self.banco = BancoAprendizado()
         self.biblioteca = BibliotecaCodificacao(DICIONARIO_CODIFICACAO_PATH)
 
+=======
+class CodificadorIA:
+    def __init__(self):
+        self.codigos_base: dict  = {}
+        self.categorias: list    = []
+        self._cache: dict        = {}
+        self._client             = None
+        self.banco               = BancoAprendizado()
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     # ── Cliente OpenAI (criado uma vez) ──────────────────────────────────────
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
+<<<<<<< HEAD
             self._client = OpenAI(api_key=API_KEY)
+=======
+            api_key = _get_api_key()
+            if not api_key:
+                raise RuntimeError(
+                    "Chave OpenAI nao encontrada. Configure OPENAI_API_KEY "
+                    "em variavel de ambiente, arquivo .env ou Streamlit secrets."
+                )
+            self._client = OpenAI(api_key=api_key)
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         return self._client
 
     # Modelos de raciocínio (o1, o3, o4-*) não aceitam temperature nem max_tokens
@@ -259,6 +324,7 @@ class CodificadorIA:
         return resp.choices[0].message.content.strip()
 
     # ── Alimentação ──────────────────────────────────────────────────────────
+<<<<<<< HEAD
     def _obter_few_shot_completo(self, tipo: str, modo: str, pergunta_texto: str = "") -> str:
         exemplos_banco = self.banco.buscar_exemplos(tipo, n=12)
         exemplos_biblioteca = []
@@ -286,6 +352,8 @@ class CodificadorIA:
             n=30,
         )
 
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     def carregar_codigos(self, dados: dict):
         self.codigos_base.update(dados)
@@ -302,6 +370,7 @@ class CodificadorIA:
                             modo: str = "simples",
                             contexto_custom: str = "",
                             categorias_imputacao: list = None,
+<<<<<<< HEAD
                             categorias_anteriores: list = None,
                             callback_progresso=None) -> dict:
         """
@@ -310,14 +379,26 @@ class CodificadorIA:
         categorias_anteriores: lista de categorias de uma pesquisa já realizada.
             Quando fornecida, o Agente 1 é instruído a reutilizá-las
             obrigatoriamente e só criar nova categoria em último caso absoluto.
+=======
+                            callback_progresso=None) -> dict:
+        """
+        Codifica um lote respeitando o modo de resposta:
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
         Retorna dict com chaves dependendo do modo:
           simples/livre   → {"resultado": [str, ...]}
           multipla        → {"resultado": [str, ...]}  (células com "A, B, C")
           semiaberta_*    → {"imputado": [str, ...], "novo": [str, ...]}
+<<<<<<< HEAD
         """
         categorias_imputacao  = categorias_imputacao or []
         categorias_anteriores = categorias_anteriores or []
+=======
+                            imputado = encaixou numa categoria pré-definida
+                            novo     = não encaixou, é categoria nova
+        """
+        categorias_imputacao = categorias_imputacao or []
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
         # ── Múltipla: explode por ", ", codifica cada parte, reagrupa ─────────
         if modo == "multipla":
@@ -340,7 +421,10 @@ class CodificadorIA:
             cats_expandidas = self.codificar_lote(
                 expandidas, tipo=tipo,
                 contexto_custom=contexto_custom,
+<<<<<<< HEAD
                 categorias_anteriores=categorias_anteriores,
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 callback_progresso=None)
 
             # Reagrupa por índice original
@@ -365,7 +449,10 @@ class CodificadorIA:
                 modo=modo,
                 contexto_custom=contexto_custom,
                 categorias_imputacao=categorias_imputacao,
+<<<<<<< HEAD
                 categorias_anteriores=categorias_anteriores,
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 callback_progresso=callback_progresso)
             return resultado_semi
 
@@ -373,14 +460,20 @@ class CodificadorIA:
         resultado = self.codificar_lote(
             respostas, tipo=tipo,
             contexto_custom=contexto_custom,
+<<<<<<< HEAD
             categorias_anteriores=categorias_anteriores,
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
             callback_progresso=callback_progresso)
         return {"resultado": resultado}
 
     def _codificar_semiaberta(self, respostas: list, tipo: str,
                               modo: str, contexto_custom: str,
                               categorias_imputacao: list,
+<<<<<<< HEAD
                               categorias_anteriores: list = None,
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                               callback_progresso=None) -> dict:
         """
         Semiaberta com 2 agentes conscientes das categorias fornecidas:
@@ -415,6 +508,7 @@ class CodificadorIA:
         exemplos_banco = self.banco.buscar_exemplos(tipo, n=20)
         few_shot = _formatar_few_shot(exemplos_banco)
 
+<<<<<<< HEAD
         # ── Bloco de pesquisa anterior (semiaberta) ───────────────────────────
         categorias_anteriores = categorias_anteriores or []
         if categorias_anteriores:
@@ -434,6 +528,8 @@ ausente nesta lista (caso EXTREMAMENTE raro).
         else:
             bloco_anterior = ""
 
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         cats_lista = "\n".join(f"  - {c}" for c in categorias_imputacao) \
                      if categorias_imputacao else "  (nenhuma categoria pré-definida)"
 
@@ -468,7 +564,10 @@ ausente nesta lista (caso EXTREMAMENTE raro).
         user_a1 = f"""Contexto da pesquisa:
 {instrucoes}
 {few_shot}
+<<<<<<< HEAD
 {bloco_anterior}
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 ═══════════════════════════════════════════════════
 CATEGORIAS PRÉ-DEFINIDAS — leia com atenção:
 {cats_lista}
@@ -541,7 +640,10 @@ REGRAS FINAIS:
                 cat = dec.get("categoria")
                 nova = dec.get("nova", False)
                 if cat:
+<<<<<<< HEAD
                     cat = self._capitalizar(cat)
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                     if nova:
                         grupos_nov[idx_orig].append(cat)
                     else:
@@ -555,7 +657,10 @@ REGRAS FINAIS:
                 cat = dec.get("categoria")
                 nova = dec.get("nova", False)
                 if cat:
+<<<<<<< HEAD
                     cat = self._capitalizar(cat)
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                     if nova:
                         col_novo[idx_orig] = cat
                     else:
@@ -571,6 +676,7 @@ REGRAS FINAIS:
 
         return {"imputado": col_imputado, "novo": col_novo}
 
+<<<<<<< HEAD
     def _vincular_com_lista_anterior(self, respostas: list, lista: list,
                                      instrucoes: str, few_shot: str,
                                      callback_progresso=None) -> list:
@@ -644,6 +750,8 @@ Classifique TODAS as {len(lote)} respostas."""
 
         return resultados
 
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
     def codificar(self, resposta: str, tipo: str = "livre", contexto_custom: str = "") -> str:
         """
         Codifica uma resposta individual.
@@ -775,7 +883,10 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
     # ── Fluxo principal: 2 agentes em sequência ──────────────────────────────
     def codificar_lote(self, respostas: list, tipo: str = "livre",
                        contexto_custom: str = "",
+<<<<<<< HEAD
                        categorias_anteriores: list = None,
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                        callback_progresso=None) -> list:
         """
         Fluxo de 2 agentes:
@@ -803,15 +914,20 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
         few_shot = _formatar_few_shot(exemplos_banco)
 
         # ── Tipos de normalização: agente único, sem lista fechada ────────────
+<<<<<<< HEAD
         # Se há categorias_anteriores, NÃO normaliza — usa fluxo padrão com
         # a lista fechada, garantindo que os nomes exatos sejam preservados.
         if tipo in self.TIPOS_NORMALIZACAO and not categorias_anteriores:
+=======
+        if tipo in self.TIPOS_NORMALIZACAO:
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
             norm = self._normalizar_lote(respostas_validas, tipo, instrucoes,
                                          few_shot, callback_progresso)
             for i, idx_orig in enumerate(indices_validos):
                 resultados[idx_orig] = norm[i]
             return resultados
 
+<<<<<<< HEAD
         # ── Bloco de pesquisa anterior (sem lista anterior: comportamento normal) ─
         cats_hint = ""
         if self.categorias:
@@ -850,6 +966,25 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
                 "Responda SEMPRE em JSON válido, sem texto fora do JSON."
             )
             user_cat = f"""Contexto da pesquisa:
+=======
+        cats_hint = ""
+        if self.categorias:
+            cats_hint = f"\nCategorias já usadas (reutilize se adequado): {', '.join(self.categorias)}\n"
+
+        # ── Agente 1: Categorizador — vê TODAS as respostas ─────────────────
+        # Sem amostragem: quanto mais respostas o Agente 1 ver, melhores
+        # e mais completas serão as categorias criadas para o Agente 2.
+        # O custo extra vale — erros do Agente 2 por categoria inexistente
+        # custam mais (revisão manual) do que tokens do Agente 1.
+        todas_enumeradas = "\n".join(f"{i+1}. {r}" for i, r in enumerate(respostas_validas))
+
+        system_cat = (
+            "Você é um especialista em análise qualitativa de pesquisas. "
+            "Seu trabalho é ler respostas abertas e definir um conjunto enxuto de categorias temáticas. "
+            "Responda SEMPRE em JSON válido, sem texto fora do JSON."
+        )
+        user_cat = f"""Contexto da pesquisa:
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 {instrucoes}
 {cats_hint}{few_shot}
 Todas as respostas coletadas ({len(respostas_validas)} no total):
@@ -860,6 +995,7 @@ Retorne SOMENTE este JSON (sem markdown, sem explicação):
 {{"categorias": ["categoria1", "categoria2", ...]}}
 
 Regras:
+<<<<<<< HEAD
 {regra_novas}
 - NÃO crie a categoria "SEM_RESPOSTA" — ela só existe para respostas literalmente em branco"""
 
@@ -873,6 +1009,21 @@ Regras:
 
         # Capitaliza todas as categorias antes de passar ao Agente 2
         categorias_criadas = [self._capitalizar(c) for c in categorias_criadas]
+=======
+- Crie QUANTAS categorias forem necessárias para cobrir todas as respostas
+- Prefira entre 10 e 30 categorias — use mais se a base for diversa
+- Cada categoria: 1 a 4 palavras, clara e objetiva
+- Cubra TODOS os temas — nenhuma resposta deve ficar sem encaixe
+- NÃO crie a categoria "SEM_RESPOSTA" — ela só existe para respostas literalmente em branco"""
+
+        texto_cats = self._chamar_gpt(system_cat, user_cat, max_tokens=1500,
+                                         modelo=MODELO_AGENTE1)
+        categorias_criadas = self._parsear_categorias(texto_cats)
+
+        # Se o agente não retornou nada válido, usa categorias já conhecidas ou genérico
+        if not categorias_criadas:
+            categorias_criadas = self.categorias[:] or ["positivo", "negativo", "neutro", "SEM_RESPOSTA"]
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
         # ── Agente 2: Classificador em lotes de 200 ──────────────────────────
         system_clf = (
@@ -883,6 +1034,7 @@ Regras:
         )
         cats_lista = "\n".join(f"- {c}" for c in categorias_criadas)
 
+<<<<<<< HEAD
         # Aviso extra para o Agente 2 quando há pesquisa anterior
         aviso_anterior_clf = ""
         if categorias_anteriores:
@@ -895,6 +1047,8 @@ Regras:
                 "a resposta deve ser 'Centro Universitário Celso Lisboa', NÃO 'Celso Lisboa'.\n"
             )
 
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         TAMANHO_LOTE = 200
         classificacoes = []
 
@@ -905,8 +1059,13 @@ Regras:
 
             user_clf = f"""Regras e contexto da codificação:
 {instrucoes}
+<<<<<<< HEAD
 {few_shot}{aviso_anterior_clf}
 Categorias disponíveis (copie o nome EXATAMENTE como está escrito abaixo):
+=======
+{few_shot}
+Categorias disponíveis (use EXATAMENTE estes nomes):
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 {cats_lista}
 
 Respostas para classificar:
@@ -919,9 +1078,14 @@ Retorne SOMENTE este JSON (sem markdown, sem explicação):
 Regras adicionais:
 - Os indices devem começar em {inicio+1}
 - Classifique TODAS as {len(lote)} respostas deste lote
+<<<<<<< HEAD
 - O valor de "categoria" deve ser COPIADO LITERALMENTE da lista — nenhuma alteração permitida
 - É PROIBIDO usar "SEM_RESPOSTA" se a resposta tiver qualquer conteúdo reconhecível
 - Se não se encaixar perfeitamente, escolha a categoria MAIS PRÓXIMA da lista
+=======
+- É PROIBIDO usar "SEM_RESPOSTA" se a resposta tiver qualquer conteúdo reconhecível
+- Se não se encaixar perfeitamente, escolha a categoria MAIS PRÓXIMA
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 - "SEM_RESPOSTA" só para resposta completamente vazia, ilegível ou "não sei\""""
 
             texto_clf = self._chamar_gpt(system_clf, user_clf, max_tokens=4000,
@@ -929,13 +1093,17 @@ Regras adicionais:
             classificacoes += self._parsear_classificacoes(texto_clf)
 
         # ── Montar resultados na ordem original ───────────────────────────────
+<<<<<<< HEAD
         # Lookup case-insensitive para corrigir só capitalização quando há lista anterior
         cats_set_lower = {c.lower(): c for c in categorias_criadas} if categorias_anteriores else {}
 
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         for item in classificacoes:
             idx_local = item.get("indice", 0) - 1   # 1-based → 0-based
             if 0 <= idx_local < len(indices_validos):
                 idx_original = indices_validos[idx_local]
+<<<<<<< HEAD
                 cat = self._capitalizar(item.get("categoria", "Nao_classificado"))
 
                 # Se há pesquisa anterior: corrige só capitalização.
@@ -943,6 +1111,9 @@ Regras adicionais:
                 if categorias_anteriores:
                     cat = cats_set_lower.get(cat.lower(), cat)
 
+=======
+                cat = item.get("categoria", "nao_classificado")
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 resultados[idx_original] = cat
 
                 chave = f"{tipo}::{respostas_validas[idx_local].lower()}"
@@ -1017,6 +1188,7 @@ Categoria:"""
         for prefixo in ["categoria:", "resposta:", "categoria é", "a categoria é"]:
             if cat.lower().startswith(prefixo.lower()):
                 cat = cat[len(prefixo):].strip()
+<<<<<<< HEAD
         cat = cat.strip()
         if not cat:
             return "Nao_classificado"
@@ -1030,6 +1202,9 @@ Categoria:"""
         if not cat:
             return cat
         return cat[0].upper() + cat[1:]
+=======
+        return cat.strip() if cat.strip() else "nao_classificado"
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     # ── Cache ─────────────────────────────────────────────────────────────────
 

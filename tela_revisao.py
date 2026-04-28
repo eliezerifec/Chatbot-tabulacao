@@ -52,12 +52,20 @@ class TelaRevisao:
     """
 
     def __init__(self, parent, banco: BancoAprendizado,
+<<<<<<< HEAD
                  fila: list[dict], sheets: dict = None, on_close=None):
         self.parent   = parent
         self.banco    = banco
         self.fila     = fila
         self.sheets   = sheets or {}
         self.on_close = on_close  # callback chamado ao fechar (pipeline)
+=======
+                 fila: list[dict], sheets: dict = None):
+        self.parent  = parent
+        self.banco   = banco
+        self.fila    = fila
+        self.sheets  = sheets or {}
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
         self.idx_aba     = 0
         self.idx_exemplo = 0
@@ -74,6 +82,7 @@ class TelaRevisao:
 
     # ── Janela base ───────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
     def _fechar(self):
         """Fecha a janela e dispara o callback on_close se houver."""
         try:
@@ -83,6 +92,8 @@ class TelaRevisao:
         if self.on_close:
             self.on_close()
 
+=======
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
     def _criar_janela(self):
         self.win = tk.Toplevel(self.parent)
         self.win.title("Treinar IA — Revisão Rápida")
@@ -346,7 +357,11 @@ class TelaRevisao:
 
         tk.Button(btns, text="Fechar", bg=BORDER, fg=TXT_2,
                   font=F_BODY, relief="flat", padx=14, pady=8,
+<<<<<<< HEAD
                   cursor="hand2", command=self._fechar).pack(side=tk.LEFT)
+=======
+                  cursor="hand2", command=self.win.destroy).pack(side=tk.LEFT)
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     # ══════════════════════════════════════════════════════════════════════════
     # TELA — "Agora não" → direto para exportar
@@ -378,7 +393,11 @@ class TelaRevisao:
 
         tk.Button(btns, text="Fechar", bg=BORDER, fg=TXT_2,
                   font=F_BODY, relief="flat", padx=14, pady=10,
+<<<<<<< HEAD
                   cursor="hand2", command=self._fechar).pack(side=tk.LEFT)
+=======
+                  cursor="hand2", command=self.win.destroy).pack(side=tk.LEFT)
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     # ── Exportar ──────────────────────────────────────────────────────────────
 
@@ -402,6 +421,12 @@ class TelaRevisao:
                     for nome, df in self.sheets.items():
                         df.to_excel(writer, sheet_name=nome, index=False)
             messagebox.showinfo("Sucesso", f"Planilha salva!", parent=self.win)
+<<<<<<< HEAD
             self._fechar()
         except Exception as e:
             messagebox.showerror("Erro", str(e), parent=self.win)
+=======
+            self.win.destroy()
+        except Exception as e:
+            messagebox.showerror("Erro", str(e), parent=self.win)
+>>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
