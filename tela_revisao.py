@@ -1,11 +1,11 @@
-"""
-Tela de Revisão — Popup pós-codificação
+﻿"""
+Tela de RevisÃ£o â€” Popup pÃ³s-codificaÃ§Ã£o
 ----------------------------------------
 Fluxo:
-  1. Aparece automaticamente ao terminar a codificação
-  2. Pergunta "Me ajuda a te ajudar!" com Sim / Não
-  3. Se Sim → revisão card a card (5 por aba)
-  4. Se Não → mostra botão Exportar Planilha
+  1. Aparece automaticamente ao terminar a codificaÃ§Ã£o
+  2. Pergunta "Me ajuda a te ajudar!" com Sim / NÃ£o
+  3. Se Sim â†’ revisÃ£o card a card (5 por aba)
+  4. Se NÃ£o â†’ mostra botÃ£o Exportar Planilha
 """
 
 import tkinter as tk
@@ -13,7 +13,7 @@ from tkinter import ttk, messagebox, filedialog
 import pandas as pd
 from aprendizado import BancoAprendizado
 
-# ── Paleta ────────────────────────────────────────────────────────────────────
+# â”€â”€ Paleta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 AZUL      = "#1a3a6b"
 AZUL_L    = "#e8f0fb"
 OURO      = "#c8971e"
@@ -44,7 +44,7 @@ def _center(win, w, h):
 
 class TelaRevisao:
     """
-    Abre automaticamente após codificação.
+    Abre automaticamente apÃ³s codificaÃ§Ã£o.
     parent   : janela principal (tk.Tk)
     banco    : BancoAprendizado
     fila     : lista de {'aba', 'tipo', 'exemplos': [...]}
@@ -52,20 +52,12 @@ class TelaRevisao:
     """
 
     def __init__(self, parent, banco: BancoAprendizado,
-<<<<<<< HEAD
                  fila: list[dict], sheets: dict = None, on_close=None):
         self.parent   = parent
         self.banco    = banco
         self.fila     = fila
         self.sheets   = sheets or {}
         self.on_close = on_close  # callback chamado ao fechar (pipeline)
-=======
-                 fila: list[dict], sheets: dict = None):
-        self.parent  = parent
-        self.banco   = banco
-        self.fila    = fila
-        self.sheets  = sheets or {}
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
         self.idx_aba     = 0
         self.idx_exemplo = 0
@@ -78,11 +70,10 @@ class TelaRevisao:
             acumulado += len(item["exemplos"])
 
         self._criar_janela()
-        self._tela_convite()   # começa pela tela de convite
+        self._tela_convite()   # comeÃ§a pela tela de convite
 
-    # ── Janela base ───────────────────────────────────────────────────────────
+    # â”€â”€ Janela base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-<<<<<<< HEAD
     def _fechar(self):
         """Fecha a janela e dispara o callback on_close se houver."""
         try:
@@ -92,11 +83,9 @@ class TelaRevisao:
         if self.on_close:
             self.on_close()
 
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
     def _criar_janela(self):
         self.win = tk.Toplevel(self.parent)
-        self.win.title("Treinar IA — Revisão Rápida")
+        self.win.title("Treinar IA â€” RevisÃ£o RÃ¡pida")
         self.win.resizable(False, False)
         self.win.configure(bg=BG)
         self.win.grab_set()
@@ -106,9 +95,9 @@ class TelaRevisao:
         for w in self.win.winfo_children():
             w.destroy()
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # TELA 1 — Convite
-    # ══════════════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    # TELA 1 â€” Convite
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def _tela_convite(self):
         self._limpar()
@@ -117,7 +106,7 @@ class TelaRevisao:
         # Header
         hdr = tk.Frame(self.win, bg=AZUL)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="🎓  Treinar IA", bg=AZUL, fg=BRANCO,
+        tk.Label(hdr, text="ðŸŽ“  Treinar IA", bg=AZUL, fg=BRANCO,
                  font=F_H1, pady=14, padx=18).pack(side=tk.LEFT)
 
         # Corpo
@@ -128,27 +117,27 @@ class TelaRevisao:
                  bg=BG, fg=TXT_1, font=("Segoe UI", 14, "bold")).pack(pady=(0, 8))
 
         tk.Label(body,
-                 text="Quer me ajudar a ficar melhor?\nLeva menos de 1 minuto — só 5 respostas rápidas.",
+                 text="Quer me ajudar a ficar melhor?\nLeva menos de 1 minuto â€” sÃ³ 5 respostas rÃ¡pidas.",
                  bg=BG, fg=TXT_2, font=F_BODY, justify="center").pack(pady=(0, 22))
 
         btns = tk.Frame(body, bg=BG)
         btns.pack()
 
-        tk.Button(btns, text="👍  Sim, vamos lá!", bg=VERDE, fg=BRANCO,
+        tk.Button(btns, text="ðŸ‘  Sim, vamos lÃ¡!", bg=VERDE, fg=BRANCO,
                   font=F_H2, relief="flat", padx=22, pady=10,
                   cursor="hand2", activebackground="#0f4f2a",
                   activeforeground=BRANCO,
                   command=self._iniciar_revisao).pack(side=tk.LEFT, padx=(0, 12))
 
-        tk.Button(btns, text="Agora não", bg=BORDER, fg=TXT_2,
+        tk.Button(btns, text="Agora nÃ£o", bg=BORDER, fg=TXT_2,
                   font=F_BODY, relief="flat", padx=16, pady=10,
                   cursor="hand2", activebackground="#cbd5e1",
                   activeforeground=TXT_1,
                   command=self._tela_exportar).pack(side=tk.LEFT)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # TELA 2 — Revisão card a card
-    # ══════════════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    # TELA 2 â€” RevisÃ£o card a card
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def _iniciar_revisao(self):
         self._limpar()
@@ -157,7 +146,7 @@ class TelaRevisao:
         # Header com progresso
         hdr = tk.Frame(self.win, bg=AZUL)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="🎓  Treinar IA", bg=AZUL, fg=BRANCO,
+        tk.Label(hdr, text="ðŸŽ“  Treinar IA", bg=AZUL, fg=BRANCO,
                  font=F_H1, pady=12, padx=18).pack(side=tk.LEFT)
         self.lbl_hdr_prog = tk.Label(hdr, text="", bg=AZUL, fg="#7fa8d4",
                                      font=F_SMALL, padx=16)
@@ -190,7 +179,7 @@ class TelaRevisao:
                                    font=F_BOLD, padx=10, pady=4)
         self.lbl_cat_ia.pack(anchor="w", pady=(2, 0))
 
-        # Frame de correção — fica DENTRO do card, sempre presente, escondido
+        # Frame de correÃ§Ã£o â€” fica DENTRO do card, sempre presente, escondido
         self.frame_correcao = tk.Frame(card, bg=BRANCO)
 
         tk.Label(self.frame_correcao, text="Categoria correta:",
@@ -203,34 +192,34 @@ class TelaRevisao:
         self.entry_correcao.pack(fill=tk.X, ipady=7, padx=8)
         self.entry_correcao.bind("<Return>", lambda e: self._salvar_correcao())
 
-        # Botões
+        # BotÃµes
         self.btn_frame = tk.Frame(self.win, bg=BG, padx=20, pady=12)
         self.btn_frame.pack(fill=tk.X)
 
         self.btn_correto = tk.Button(
-            self.btn_frame, text="✓  Correto", bg=VERDE, fg=BRANCO,
+            self.btn_frame, text="âœ“  Correto", bg=VERDE, fg=BRANCO,
             font=F_BOLD, relief="flat", padx=16, pady=8, cursor="hand2",
             activebackground="#0f4f2a", activeforeground=BRANCO,
             command=self._aprovar)
         self.btn_correto.pack(side=tk.LEFT, padx=(0, 8))
 
         self.btn_corrigir = tk.Button(
-            self.btn_frame, text="✎  Corrigir", bg=OURO, fg=BRANCO,
+            self.btn_frame, text="âœŽ  Corrigir", bg=OURO, fg=BRANCO,
             font=F_BOLD, relief="flat", padx=16, pady=8, cursor="hand2",
             activebackground="#a57a14", activeforeground=BRANCO,
             command=self._mostrar_correcao)
         self.btn_corrigir.pack(side=tk.LEFT, padx=(0, 8))
 
         self.btn_salvar = tk.Button(
-            self.btn_frame, text="Salvar →", bg=AZUL, fg=BRANCO,
+            self.btn_frame, text="Salvar â†’", bg=AZUL, fg=BRANCO,
             font=F_BOLD, relief="flat", padx=16, pady=8, cursor="hand2",
             activebackground="#122a52", activeforeground=BRANCO,
             command=self._salvar_correcao)
-        # começa oculto
+        # comeÃ§a oculto
         self.btn_salvar.pack(side=tk.LEFT)
         self.btn_salvar.pack_forget()
 
-        tk.Button(self.btn_frame, text="Pular →", bg=BORDER, fg=TXT_2,
+        tk.Button(self.btn_frame, text="Pular â†’", bg=BORDER, fg=TXT_2,
                   font=F_BODY, relief="flat", padx=12, pady=8,
                   cursor="hand2", activebackground="#cbd5e1",
                   command=self._pular).pack(side=tk.RIGHT)
@@ -241,7 +230,7 @@ class TelaRevisao:
 
         self._mostrar_atual()
 
-    # ── Lógica de navegação ───────────────────────────────────────────────────
+    # â”€â”€ LÃ³gica de navegaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _mostrar_atual(self):
         if self.idx_aba >= len(self.fila):
@@ -264,19 +253,19 @@ class TelaRevisao:
         pct = (feitos / total * 100) if total else 0
 
         self.lbl_aba.config(
-            text=f"Aba: {aba_data['aba']}  •  {self.idx_exemplo+1} de {len(exemplos)}")
+            text=f"Aba: {aba_data['aba']}  â€¢  {self.idx_exemplo+1} de {len(exemplos)}")
         self.lbl_resposta.config(text=f'"{exemplo["resposta"]}"')
         self.lbl_cat_ia.config(text=exemplo["categoria"])
         self.lbl_hdr_prog.config(text=f"{feitos+1} / {total}")
         self.progress.config(value=pct)
 
-        # Garante que o frame de correção está oculto e botões no estado inicial
+        # Garante que o frame de correÃ§Ã£o estÃ¡ oculto e botÃµes no estado inicial
         self._esconder_correcao()
         self.entry_correcao.delete(0, tk.END)
         self.entry_correcao.config(bg=BRANCO)
 
     def _mostrar_correcao(self):
-        """Exibe o campo de texto para correção."""
+        """Exibe o campo de texto para correÃ§Ã£o."""
         self.frame_correcao.pack(fill=tk.X, pady=(8, 0))
         self.btn_salvar.pack(side=tk.LEFT)
         self.btn_corrigir.pack_forget()
@@ -318,9 +307,9 @@ class TelaRevisao:
         self.idx_exemplo += 1
         self._mostrar_atual()
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # TELA 3 — Conclusão
-    # ══════════════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    # TELA 3 â€” ConclusÃ£o
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def _tela_conclusao(self):
         self._limpar()
@@ -328,7 +317,7 @@ class TelaRevisao:
 
         hdr = tk.Frame(self.win, bg=VERDE)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="✅  Treino concluído!", bg=VERDE, fg=BRANCO,
+        tk.Label(hdr, text="âœ…  Treino concluÃ­do!", bg=VERDE, fg=BRANCO,
                  font=F_H1, pady=14, padx=18).pack(side=tk.LEFT)
 
         body = tk.Frame(self.win, bg=BG, padx=30, pady=20)
@@ -337,9 +326,9 @@ class TelaRevisao:
         try:
             st = self.banco.stats()
             info = (f"Salvei {self.salvos} exemplo(s) novo(s).\n\n"
-                    f"📊 Banco coletivo:\n"
-                    f"   {st['total']} exemplos  •  {st['taxa_acerto']}% de acerto\n\n"
-                    f"Obrigado! Os próximos resultados\nserão mais precisos. 🚀")
+                    f"ðŸ“Š Banco coletivo:\n"
+                    f"   {st['total']} exemplos  â€¢  {st['taxa_acerto']}% de acerto\n\n"
+                    f"Obrigado! Os prÃ³ximos resultados\nserÃ£o mais precisos. ðŸš€")
         except Exception:
             info = f"Salvei {self.salvos} exemplo(s). Obrigado!"
 
@@ -349,7 +338,7 @@ class TelaRevisao:
         btns = tk.Frame(body, bg=BG)
         btns.pack(anchor="w")
 
-        tk.Button(btns, text="⬇  Exportar planilha", bg=AZUL, fg=BRANCO,
+        tk.Button(btns, text="â¬‡  Exportar planilha", bg=AZUL, fg=BRANCO,
                   font=F_BOLD, relief="flat", padx=16, pady=8,
                   cursor="hand2", activebackground="#122a52",
                   activeforeground=BRANCO,
@@ -357,15 +346,11 @@ class TelaRevisao:
 
         tk.Button(btns, text="Fechar", bg=BORDER, fg=TXT_2,
                   font=F_BODY, relief="flat", padx=14, pady=8,
-<<<<<<< HEAD
                   cursor="hand2", command=self._fechar).pack(side=tk.LEFT)
-=======
-                  cursor="hand2", command=self.win.destroy).pack(side=tk.LEFT)
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # TELA — "Agora não" → direto para exportar
-    # ══════════════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    # TELA â€” "Agora nÃ£o" â†’ direto para exportar
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     def _tela_exportar(self):
         self._limpar()
@@ -373,19 +358,19 @@ class TelaRevisao:
 
         hdr = tk.Frame(self.win, bg=AZUL)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="📊  Exportar resultado", bg=AZUL, fg=BRANCO,
+        tk.Label(hdr, text="ðŸ“Š  Exportar resultado", bg=AZUL, fg=BRANCO,
                  font=F_H1, pady=14, padx=18).pack(side=tk.LEFT)
 
         body = tk.Frame(self.win, bg=BG, padx=30, pady=24)
         body.pack(fill=tk.BOTH, expand=True)
 
-        tk.Label(body, text="Tudo pronto! Exporte a planilha\ncom os resultados da codificação.",
+        tk.Label(body, text="Tudo pronto! Exporte a planilha\ncom os resultados da codificaÃ§Ã£o.",
                  bg=BG, fg=TXT_2, font=F_BODY, justify="center").pack(pady=(0, 20))
 
         btns = tk.Frame(body, bg=BG)
         btns.pack()
 
-        tk.Button(btns, text="⬇  Exportar planilha", bg=AZUL, fg=BRANCO,
+        tk.Button(btns, text="â¬‡  Exportar planilha", bg=AZUL, fg=BRANCO,
                   font=F_BOLD, relief="flat", padx=18, pady=10,
                   cursor="hand2", activebackground="#122a52",
                   activeforeground=BRANCO,
@@ -393,18 +378,14 @@ class TelaRevisao:
 
         tk.Button(btns, text="Fechar", bg=BORDER, fg=TXT_2,
                   font=F_BODY, relief="flat", padx=14, pady=10,
-<<<<<<< HEAD
                   cursor="hand2", command=self._fechar).pack(side=tk.LEFT)
-=======
-                  cursor="hand2", command=self.win.destroy).pack(side=tk.LEFT)
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
-    # ── Exportar ──────────────────────────────────────────────────────────────
+    # â”€â”€ Exportar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _exportar(self):
         if not self.sheets:
             messagebox.showinfo("Exportar",
-                                "Nenhum dado disponível.\nExporte pela janela principal.",
+                                "Nenhum dado disponÃ­vel.\nExporte pela janela principal.",
                                 parent=self.win)
             return
         path = filedialog.asksaveasfilename(
@@ -421,12 +402,6 @@ class TelaRevisao:
                     for nome, df in self.sheets.items():
                         df.to_excel(writer, sheet_name=nome, index=False)
             messagebox.showinfo("Sucesso", f"Planilha salva!", parent=self.win)
-<<<<<<< HEAD
             self._fechar()
         except Exception as e:
             messagebox.showerror("Erro", str(e), parent=self.win)
-=======
-            self.win.destroy()
-        except Exception as e:
-            messagebox.showerror("Erro", str(e), parent=self.win)
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e

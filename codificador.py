@@ -1,10 +1,10 @@
-"""
-Motor de Codificação com IA — Fluxo de 2 Agentes via OpenAI
+﻿"""
+Motor de CodificaÃ§Ã£o com IA â€” Fluxo de 2 Agentes via OpenAI
 -------------------------------------------------------------
-Agente 1 (Categorizador): lê TODAS as respostas e cria as categorias
+Agente 1 (Categorizador): lÃª TODAS as respostas e cria as categorias
 Agente 2 (Classificador): associa cada resposta a uma categoria
 
-Não depende de crewai. Usa apenas: openai, pandas, requests
+NÃ£o depende de crewai. Usa apenas: openai, pandas, requests
 """
 
 import json
@@ -14,239 +14,193 @@ import random
 from difflib import SequenceMatcher
 from openai import OpenAI
 from aprendizado import BancoAprendizado
-<<<<<<< HEAD
 from pathlib import Path
 from biblioteca_codificacao import BibliotecaCodificacao
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
-# ── Configuração ──────────────────────────────────────────────────────────────
-# Lê do arquivo .env (nunca sobe para o GitHub)
+# â”€â”€ ConfiguraÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# LÃª do arquivo .env (nunca sobe para o GitHub)
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # sem dotenv, lê das variáveis de ambiente do sistema
+    pass  # sem dotenv, lÃª das variÃ¡veis de ambiente do sistema
 
-<<<<<<< HEAD
 API_KEY = os.getenv("OPENAI_API_KEY", "")
 if not API_KEY:
     raise RuntimeError(
-        "Chave OpenAI não encontrada.\n"
+        "Chave OpenAI nÃ£o encontrada.\n"
         "Crie um arquivo .env na pasta do projeto com:\n"
         "  OPENAI_API_KEY=sk-..."
     )
 DICIONARIO_CODIFICACAO_PATH = os.getenv(
     "DICIONARIO_CODIFICACAO_PATH",
-    str(Path(__file__).resolve().parent.parent / "Dicionário" / "Dicionario.xlsx")
+    str(Path(__file__).resolve().parent.parent / "DicionÃ¡rio" / "Dicionario.xlsx")
 )
-=======
-def _get_api_key() -> str:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if api_key:
-        return api_key
 
-    try:
-        import streamlit as st
-
-        secret_value = st.secrets.get("OPENAI_API_KEY", "")
-        if isinstance(secret_value, str) and secret_value.strip():
-            return secret_value.strip()
-    except Exception:
-        pass
-
-    return ""
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
-
-# ── Modelos por agente ────────────────────────────────────────────────────────
-# Agente 1 (Categorizador): cria as categorias — modelo mais inteligente
+# â”€â”€ Modelos por agente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Agente 1 (Categorizador): cria as categorias â€” modelo mais inteligente
 MODELO_AGENTE1 = "gpt-5.4"
-# Agente 2 (Classificador): vincula respostas às categorias — mais rápido e barato
+# Agente 2 (Classificador): vincula respostas Ã s categorias â€” mais rÃ¡pido e barato
 MODELO_AGENTE2 = "gpt-4o"
 
-# ── Modos de resposta (estrutura da resposta) ────────────────────────────────
-# Independente do tipo semântico, a resposta pode ter estrutura diferente
+# â”€â”€ Modos de resposta (estrutura da resposta) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Independente do tipo semÃ¢ntico, a resposta pode ter estrutura diferente
 MODOS_RESPOSTA = {
     "simples": {
         "label": "Simples",
-        "descricao": "Uma resposta → uma categoria",
+        "descricao": "Uma resposta â†’ uma categoria",
     },
     "multipla": {
-        "label": "Múltipla",
+        "label": "MÃºltipla",
         "descricao": "Separa por ', ' e codifica cada parte individualmente",
     },
     "semiaberta_simples": {
-        "label": "Semiaberta — Simples",
-        "descricao": "Categoriza em predefinidas (imputação) ou cria nova coluna",
+        "label": "Semiaberta â€” Simples",
+        "descricao": "Categoriza em predefinidas (imputaÃ§Ã£o) ou cria nova coluna",
     },
     "semiaberta_multipla": {
-        "label": "Semiaberta — Múltipla",
+        "label": "Semiaberta â€” MÃºltipla",
         "descricao": "Separa por ', ' + categoriza em predefinidas ou cria nova",
     },
 }
 
-# ── Tipos de pergunta predefinidos ────────────────────────────────────────────
+# â”€â”€ Tipos de pergunta predefinidos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 TIPOS_PERGUNTA = {
     "reconhecimento_marca": {
-        "label": "🏷  Reconhecimento de Marca",
+        "label": "ðŸ·  Reconhecimento de Marca",
         "descricao": "Quais marcas o participante lembrou de ter visto",
-        "instrucoes": """Você está codificando respostas de uma pergunta de reconhecimento de marca espontânea.
+        "instrucoes": """VocÃª estÃ¡ codificando respostas de uma pergunta de reconhecimento de marca espontÃ¢nea.
 O participante respondeu quais marcas lembrou de ter visto em um evento.
 
-REGRAS OBRIGATÓRIAS:
+REGRAS OBRIGATÃ“RIAS:
 1. Extraia APENAS os nomes das marcas mencionadas
-2. Se houver mais de uma marca, separe com ", " (vírgula espaço)
-3. Normalize o nome: capitalize corretamente (ex: "coca cola" → "Coca-Cola")
-4. Ignore palavras que não são marcas (ex: "não lembro", "nenhuma")
-5. Se não houver marca identificável, use a categoria: SEM_MARCA
+2. Se houver mais de uma marca, separe com ", " (vÃ­rgula espaÃ§o)
+3. Normalize o nome: capitalize corretamente (ex: "coca cola" â†’ "Coca-Cola")
+4. Ignore palavras que nÃ£o sÃ£o marcas (ex: "nÃ£o lembro", "nenhuma")
+5. Se nÃ£o houver marca identificÃ¡vel, use a categoria: SEM_MARCA
 6. Cada categoria deve ser o nome da marca normalizado
 
-Exemplos de classificação:
-  "vi a coca cola e a pepsi"  →  Coca-Cola, Pepsi
-  "brahma"                    →  Brahma
-  "não lembro de nenhuma"     →  SEM_MARCA
-  "Nike e Adidas estavam lá"  →  Nike, Adidas""",
+Exemplos de classificaÃ§Ã£o:
+  "vi a coca cola e a pepsi"  â†’  Coca-Cola, Pepsi
+  "brahma"                    â†’  Brahma
+  "nÃ£o lembro de nenhuma"     â†’  SEM_MARCA
+  "Nike e Adidas estavam lÃ¡"  â†’  Nike, Adidas""",
     },
 
     "satisfacao": {
-        "label": "😊  Satisfação / Motivo",
+        "label": "ðŸ˜Š  SatisfaÃ§Ã£o / Motivo",
         "descricao": "Por que o participante gostou do evento",
-        "instrucoes": """Você está codificando respostas abertas de satisfação de evento.
-O participante explicou por que gostou (ou não gostou) do evento.
+        "instrucoes": """VocÃª estÃ¡ codificando respostas abertas de satisfaÃ§Ã£o de evento.
+O participante explicou por que gostou (ou nÃ£o gostou) do evento.
 
-REGRAS OBRIGATÓRIAS:
-1. Crie UMA categoria temática que resuma a resposta
-2. A categoria deve ter NO MÁXIMO 3 palavras, ser uma frase curta e direta
-3. Use substantivos/adjetivos descritivos (ex: "boa organização", "atrações diversas", "atendimento ruim")
+REGRAS OBRIGATÃ“RIAS:
+1. Crie UMA categoria temÃ¡tica que resuma a resposta
+2. A categoria deve ter NO MÃXIMO 3 palavras, ser uma frase curta e direta
+3. Use substantivos/adjetivos descritivos (ex: "boa organizaÃ§Ã£o", "atraÃ§Ãµes diversas", "atendimento ruim")
 4. Agrupe respostas com o MESMO TEMA na mesma categoria
 5. Seja consistente: respostas similares = mesma categoria
 
-Exemplos de classificação:
-  "adorei a organização do evento, tudo muito bem feito"  →  boa organização
-  "as atrações foram incríveis"                           →  atrações diversas
-  "o atendimento foi péssimo"                             →  atendimento ruim
-  "gostei muito da música ao vivo"                        →  música ao vivo
-  "estava muito cheio e desorganizado"                    →  superlotação desorganizada""",
+Exemplos de classificaÃ§Ã£o:
+  "adorei a organizaÃ§Ã£o do evento, tudo muito bem feito"  â†’  boa organizaÃ§Ã£o
+  "as atraÃ§Ãµes foram incrÃ­veis"                           â†’  atraÃ§Ãµes diversas
+  "o atendimento foi pÃ©ssimo"                             â†’  atendimento ruim
+  "gostei muito da mÃºsica ao vivo"                        â†’  mÃºsica ao vivo
+  "estava muito cheio e desorganizado"                    â†’  superlotaÃ§Ã£o desorganizada""",
     },
 
     "definicao_palavra": {
-        "label": "💬  Definição em Uma Palavra",
-        "descricao": "Uma palavra que define a experiência",
-        "instrucoes": """Você está codificando respostas de uma pergunta "defina em uma palavra".
-O participante escolheu uma palavra para descrever sua experiência.
+        "label": "ðŸ’¬  DefiniÃ§Ã£o em Uma Palavra",
+        "descricao": "Uma palavra que define a experiÃªncia",
+        "instrucoes": """VocÃª estÃ¡ codificando respostas de uma pergunta "defina em uma palavra".
+O participante escolheu uma palavra para descrever sua experiÃªncia.
 
-REGRAS OBRIGATÓRIAS:
+REGRAS OBRIGATÃ“RIAS:
 1. Normalize a palavra: corrija grafia, capitalize a primeira letra
-2. Agrupe palavras com o MESMO significado ou raiz em uma categoria única:
-   - "lindo", "linda", "lindíssimo" → Lindo
-   - "ótimo", "ótima", "otimo" → Ótimo
-   - "incrível", "incrivel", "incredivel" → Incrível
-3. Use sempre o masculino singular como forma canônica
+2. Agrupe palavras com o MESMO significado ou raiz em uma categoria Ãºnica:
+   - "lindo", "linda", "lindÃ­ssimo" â†’ Lindo
+   - "Ã³timo", "Ã³tima", "otimo" â†’ Ã“timo
+   - "incrÃ­vel", "incrivel", "incredivel" â†’ IncrÃ­vel
+3. Use sempre o masculino singular como forma canÃ´nica
 4. Se a resposta tiver mais de uma palavra, use apenas a mais relevante
 
-Exemplos de classificação:
-  "linda"       →  Lindo
-  "INCRIVEL"    →  Incrível
-  "muito bom"   →  Bom
-  "maravilhoso" →  Maravilhoso
-  "otimo"       →  Ótimo""",
+Exemplos de classificaÃ§Ã£o:
+  "linda"       â†’  Lindo
+  "INCRIVEL"    â†’  IncrÃ­vel
+  "muito bom"   â†’  Bom
+  "maravilhoso" â†’  Maravilhoso
+  "otimo"       â†’  Ã“timo""",
     },
 
     "local_moradia": {
-        "label": "📍  Local de Moradia",
-        "descricao": "Cidade, estado ou país onde mora",
-        "instrucoes": """Você está codificando respostas de uma pergunta sobre local de moradia.
+        "label": "ðŸ“  Local de Moradia",
+        "descricao": "Cidade, estado ou paÃ­s onde mora",
+        "instrucoes": """VocÃª estÃ¡ codificando respostas de uma pergunta sobre local de moradia.
 
-REGRAS OBRIGATÓRIAS:
-1. Extraia APENAS o nome do estado ou país
+REGRAS OBRIGATÃ“RIAS:
+1. Extraia APENAS o nome do estado ou paÃ­s
 2. Se a pessoa mencionou cidade, retorne o ESTADO correspondente
-3. Use o nome completo do estado (ex: "SP" → "São Paulo")
-4. Se for fora do Brasil, retorne o nome do PAÍS
+3. Use o nome completo do estado (ex: "SP" â†’ "SÃ£o Paulo")
+4. Se for fora do Brasil, retorne o nome do PAÃS
 5. Normalize a grafia: capitalize corretamente
-6. Se não for possível identificar, use a categoria: NÃO IDENTIFICADO
+6. Se nÃ£o for possÃ­vel identificar, use a categoria: NÃƒO IDENTIFICADO
 
-Exemplos de classificação:
-  "moro em São Paulo capital"  →  São Paulo
-  "Rio de Janeiro, Copacabana" →  Rio de Janeiro
-  "sou de BH"                  →  Minas Gerais
-  "moro em SP"                 →  São Paulo
-  "Argentina"                  →  Argentina
-  "não sei"                    →  NÃO IDENTIFICADO""",
+Exemplos de classificaÃ§Ã£o:
+  "moro em SÃ£o Paulo capital"  â†’  SÃ£o Paulo
+  "Rio de Janeiro, Copacabana" â†’  Rio de Janeiro
+  "sou de BH"                  â†’  Minas Gerais
+  "moro em SP"                 â†’  SÃ£o Paulo
+  "Argentina"                  â†’  Argentina
+  "nÃ£o sei"                    â†’  NÃƒO IDENTIFICADO""",
     },
 
     "livre": {
-        "label": "✏️  Personalizado",
-        "descricao": "Usar contexto personalizado que você escrever",
+        "label": "âœï¸  Personalizado",
+        "descricao": "Usar contexto personalizado que vocÃª escrever",
         "instrucoes": None,
     },
 }
 
 
 def _formatar_few_shot(exemplos: list) -> str:
-<<<<<<< HEAD
-=======
-    """
-    Formata exemplos do banco de aprendizado para injeção nos prompts.
-
-    Mostra separadamente:
-      - Exemplos onde a IA ERROU e o humano corrigiu  ← mais instrutivos
-      - Exemplos aprovados pelo humano
-
-    Isso ensina ao modelo exatamente onde ele costuma errar
-    e qual é o raciocínio correto esperado pelos pesquisadores.
-    """
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
     if not exemplos:
         return ""
 
     corrigidos = [e for e in exemplos if not e.get("correto", True)]
-<<<<<<< HEAD
     aprovados = [e for e in exemplos if e.get("correto", True)]
-=======
-    aprovados  = [e for e in exemplos if e.get("correto", True)]
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     linhas = []
 
     if corrigidos:
-        linhas.append("\nExemplos onde a IA ERROU — aprenda com estes casos:")
+        linhas.append("\nExemplos onde a IA ERROU â€” aprenda com estes casos:")
         for e in corrigidos:
-<<<<<<< HEAD
             cat_ia = e.get("categoria_ia", "?")
             cat_ok = e["categoria"]
             linhas.append(
                 f'  "{e["resposta"]}"'
-=======
-            cat_ia  = e.get("categoria_ia", "?")
-            cat_ok  = e["categoria"]
-            linhas.append(
-                f'  "{e["resposta"]}"' +
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
-                f'  [IA disse: {cat_ia}]  →  CORRETO: {cat_ok}'
+                f'  [IA disse: {cat_ia}]  â†’  CORRETO: {cat_ok}'
             )
 
     if aprovados:
         linhas.append("\nExemplos validados pelos pesquisadores:")
         for e in aprovados:
-            linhas.append(f'  "{e["resposta"]}"  →  {e["categoria"]}')
+            linhas.append(f'  "{e["resposta"]}"  â†’  {e["categoria"]}')
 
     return "\n".join(linhas) + "\n"
 
 
-<<<<<<< HEAD
 def _formatar_few_shot_biblioteca(exemplos: list) -> str:
     if not exemplos:
         return ""
 
     linhas = [
-        "\nBiblioteca histórica de codificação — use como referência principal de estilo e granularidade:"
+        "\nBiblioteca histÃ³rica de codificaÃ§Ã£o â€” use como referÃªncia principal de estilo e granularidade:"
     ]
 
     for e in exemplos:
         pergunta = e.get("pergunta_texto", "").strip()
         if pergunta:
             linhas.append(f"  [Pergunta] {pergunta}")
-        linhas.append(f'  "{e["resposta"]}"  →  {e["categoria"]}')
+        linhas.append(f'  "{e["resposta"]}"  â†’  {e["categoria"]}')
 
     return "\n".join(linhas) + "\n"
 
@@ -261,39 +215,20 @@ class CodificadorIA:
         self.banco = BancoAprendizado()
         self.biblioteca = BibliotecaCodificacao(DICIONARIO_CODIFICACAO_PATH)
 
-=======
-class CodificadorIA:
-    def __init__(self):
-        self.codigos_base: dict  = {}
-        self.categorias: list    = []
-        self._cache: dict        = {}
-        self._client             = None
-        self.banco               = BancoAprendizado()
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
-    # ── Cliente OpenAI (criado uma vez) ──────────────────────────────────────
+    # â”€â”€ Cliente OpenAI (criado uma vez) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
-<<<<<<< HEAD
             self._client = OpenAI(api_key=API_KEY)
-=======
-            api_key = _get_api_key()
-            if not api_key:
-                raise RuntimeError(
-                    "Chave OpenAI nao encontrada. Configure OPENAI_API_KEY "
-                    "em variavel de ambiente, arquivo .env ou Streamlit secrets."
-                )
-            self._client = OpenAI(api_key=api_key)
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         return self._client
 
-    # Modelos de raciocínio (o1, o3, o4-*) não aceitam temperature nem max_tokens
+    # Modelos de raciocÃ­nio (o1, o3, o4-*) nÃ£o aceitam temperature nem max_tokens
     _MODELOS_RACIOCINIO = {"o1", "o1-mini", "o1-preview", "o3", "o3-mini", "o4-mini", "gpt-5", "gpt-5."}
 
     def _chamar_gpt(self, system: str, user: str, max_tokens: int = 2000,
                     modelo: str = None) -> str:
-        """Chamada à API da OpenAI — compatível com modelos GPT e de raciocínio."""
+        """Chamada Ã  API da OpenAI â€” compatÃ­vel com modelos GPT e de raciocÃ­nio."""
         modelo = modelo or MODELO_AGENTE1
         eh_raciocinio = any(modelo.startswith(m) for m in self._MODELOS_RACIOCINIO)
 
@@ -314,7 +249,7 @@ class CodificadorIA:
             params["temperature"]  = 0.1
             params["max_tokens"]   = max_tokens
         else:
-            # Modelos de raciocínio: sem system role, sem temperature
+            # Modelos de raciocÃ­nio: sem system role, sem temperature
             params["messages"] = [
                 {"role": "user", "content": f"{system}\n\n{user}"},
             ]
@@ -323,8 +258,7 @@ class CodificadorIA:
         resp = self._get_client().chat.completions.create(**params)
         return resp.choices[0].message.content.strip()
 
-    # ── Alimentação ──────────────────────────────────────────────────────────
-<<<<<<< HEAD
+    # â”€â”€ AlimentaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def _obter_few_shot_completo(self, tipo: str, modo: str, pergunta_texto: str = "") -> str:
         exemplos_banco = self.banco.buscar_exemplos(tipo, n=12)
         exemplos_biblioteca = []
@@ -352,8 +286,6 @@ class CodificadorIA:
             n=30,
         )
 
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
     def carregar_codigos(self, dados: dict):
         self.codigos_base.update(dados)
@@ -363,46 +295,33 @@ class CodificadorIA:
         if cat and cat not in self.categorias:
             self.categorias.append(cat)
 
-    # ── Codificação linha a linha (compatibilidade com a UI) ─────────────────
+    # â”€â”€ CodificaÃ§Ã£o linha a linha (compatibilidade com a UI) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
     def codificar_lote_modo(self, respostas: list, tipo: str = "livre",
                             modo: str = "simples",
                             contexto_custom: str = "",
                             categorias_imputacao: list = None,
-<<<<<<< HEAD
                             categorias_anteriores: list = None,
                             callback_progresso=None) -> dict:
         """
         Codifica um lote respeitando o modo de resposta.
 
-        categorias_anteriores: lista de categorias de uma pesquisa já realizada.
-            Quando fornecida, o Agente 1 é instruído a reutilizá-las
-            obrigatoriamente e só criar nova categoria em último caso absoluto.
-=======
-                            callback_progresso=None) -> dict:
-        """
-        Codifica um lote respeitando o modo de resposta:
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
+        categorias_anteriores: lista de categorias de uma pesquisa jÃ¡ realizada.
+            Quando fornecida, o Agente 1 Ã© instruÃ­do a reutilizÃ¡-las
+            obrigatoriamente e sÃ³ criar nova categoria em Ãºltimo caso absoluto.
 
         Retorna dict com chaves dependendo do modo:
-          simples/livre   → {"resultado": [str, ...]}
-          multipla        → {"resultado": [str, ...]}  (células com "A, B, C")
-          semiaberta_*    → {"imputado": [str, ...], "novo": [str, ...]}
-<<<<<<< HEAD
+          simples/livre   â†’ {"resultado": [str, ...]}
+          multipla        â†’ {"resultado": [str, ...]}  (cÃ©lulas com "A, B, C")
+          semiaberta_*    â†’ {"imputado": [str, ...], "novo": [str, ...]}
         """
         categorias_imputacao  = categorias_imputacao or []
         categorias_anteriores = categorias_anteriores or []
-=======
-                            imputado = encaixou numa categoria pré-definida
-                            novo     = não encaixou, é categoria nova
-        """
-        categorias_imputacao = categorias_imputacao or []
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
-        # ── Múltipla: explode por ", ", codifica cada parte, reagrupa ─────────
+        # â”€â”€ MÃºltipla: explode por ", ", codifica cada parte, reagrupa â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if modo == "multipla":
-            # Expande respostas com múltiplos valores
+            # Expande respostas com mÃºltiplos valores
             expandidas = []
             mapa = []  # (idx_original, parte_idx)
             for i, r in enumerate(respostas):
@@ -421,13 +340,10 @@ class CodificadorIA:
             cats_expandidas = self.codificar_lote(
                 expandidas, tipo=tipo,
                 contexto_custom=contexto_custom,
-<<<<<<< HEAD
                 categorias_anteriores=categorias_anteriores,
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 callback_progresso=None)
 
-            # Reagrupa por índice original
+            # Reagrupa por Ã­ndice original
             grupos = [[] for _ in respostas]
             for k, cat in enumerate(cats_expandidas):
                 grupos[mapa[k]].append(cat)
@@ -442,52 +358,43 @@ class CodificadorIA:
 
             return {"resultado": resultado}
 
-        # ── Semiaberta: o modelo decide se encaixa ou cria nova ────────────────
+        # â”€â”€ Semiaberta: o modelo decide se encaixa ou cria nova â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "semi" in modo:
             resultado_semi = self._codificar_semiaberta(
                 respostas, tipo=tipo,
                 modo=modo,
                 contexto_custom=contexto_custom,
                 categorias_imputacao=categorias_imputacao,
-<<<<<<< HEAD
                 categorias_anteriores=categorias_anteriores,
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 callback_progresso=callback_progresso)
             return resultado_semi
 
-        # ── Simples (padrão) ──────────────────────────────────────────────────
+        # â”€â”€ Simples (padrÃ£o) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         resultado = self.codificar_lote(
             respostas, tipo=tipo,
             contexto_custom=contexto_custom,
-<<<<<<< HEAD
             categorias_anteriores=categorias_anteriores,
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
             callback_progresso=callback_progresso)
         return {"resultado": resultado}
 
     def _codificar_semiaberta(self, respostas: list, tipo: str,
                               modo: str, contexto_custom: str,
                               categorias_imputacao: list,
-<<<<<<< HEAD
                               categorias_anteriores: list = None,
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                               callback_progresso=None) -> dict:
         """
         Semiaberta com 2 agentes conscientes das categorias fornecidas:
 
-        Agente 1 — vê as categorias pré-definidas + todas as respostas e decide:
+        Agente 1 â€” vÃª as categorias prÃ©-definidas + todas as respostas e decide:
                    a) quais respostas encaixam em categoria existente
                    b) quais precisam de categoria nova (e define o nome)
 
-        Agente 2 — aplica a decisão do Agente 1 em cada resposta individualmente
+        Agente 2 â€” aplica a decisÃ£o do Agente 1 em cada resposta individualmente
 
         Retorna {"imputado": [...], "novo": [...]}
-          imputado = encaixou em categoria pré-definida (nome exato da categoria)
+          imputado = encaixou em categoria prÃ©-definida (nome exato da categoria)
           novo     = categoria nova criada pela IA
-          Respostas sem encaixe E sem sentido → imputado="", novo=""
+          Respostas sem encaixe E sem sentido â†’ imputado="", novo=""
         """
         import random as _random
 
@@ -508,19 +415,18 @@ class CodificadorIA:
         exemplos_banco = self.banco.buscar_exemplos(tipo, n=20)
         few_shot = _formatar_few_shot(exemplos_banco)
 
-<<<<<<< HEAD
-        # ── Bloco de pesquisa anterior (semiaberta) ───────────────────────────
+        # â”€â”€ Bloco de pesquisa anterior (semiaberta) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         categorias_anteriores = categorias_anteriores or []
         if categorias_anteriores:
             ant_lista = "\n".join(f"  - {c}" for c in categorias_anteriores)
             bloco_anterior = f"""
-╔══════════════════════════════════════════════════════════════════════╗
-║  CATEGORIAS DA PESQUISA ANTERIOR — PRIORIDADE MÁXIMA                ║
-╚══════════════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘  CATEGORIAS DA PESQUISA ANTERIOR â€” PRIORIDADE MÃXIMA                â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 Estas categorias foram validadas em uma rodada anterior da MESMA pesquisa.
-Você DEVE encaixar cada resposta em uma delas sempre que houver qualquer
-compatibilidade semântica — mesmo que a correspondência não seja perfeita.
-Só crie categoria nova se a resposta expressar uma dimensão completamente
+VocÃª DEVE encaixar cada resposta em uma delas sempre que houver qualquer
+compatibilidade semÃ¢ntica â€” mesmo que a correspondÃªncia nÃ£o seja perfeita.
+SÃ³ crie categoria nova se a resposta expressar uma dimensÃ£o completamente
 ausente nesta lista (caso EXTREMAMENTE raro).
 
 {ant_lista}
@@ -528,12 +434,10 @@ ausente nesta lista (caso EXTREMAMENTE raro).
         else:
             bloco_anterior = ""
 
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         cats_lista = "\n".join(f"  - {c}" for c in categorias_imputacao) \
-                     if categorias_imputacao else "  (nenhuma categoria pré-definida)"
+                     if categorias_imputacao else "  (nenhuma categoria prÃ©-definida)"
 
-        # Para múltipla, expande antes de classificar
+        # Para mÃºltipla, expande antes de classificar
         multipla = "multipla" in modo
         if multipla:
             expandidas = []
@@ -553,62 +457,59 @@ ausente nesta lista (caso EXTREMAMENTE raro).
         todas_enumeradas = "\n".join(
             f"{i+1}. {r}" for i, r in enumerate(respostas_para_classificar))
 
-        # ── Agente 1: define o mapeamento resposta → decisão ─────────────────
+        # â”€â”€ Agente 1: define o mapeamento resposta â†’ decisÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         system_a1 = (
-            "Você é um especialista em análise qualitativa de pesquisas qualitativas brasileiras. "
-            "Você entende intenção por trás de respostas abertas e sabe quando uma resposta "
+            "VocÃª Ã© um especialista em anÃ¡lise qualitativa de pesquisas qualitativas brasileiras. "
+            "VocÃª entende intenÃ§Ã£o por trÃ¡s de respostas abertas e sabe quando uma resposta "
             "se encaixa semanticamente em uma categoria mesmo que as palavras sejam diferentes. "
-            "Responda SEMPRE em JSON válido, sem texto fora do JSON."
+            "Responda SEMPRE em JSON vÃ¡lido, sem texto fora do JSON."
         )
 
         user_a1 = f"""Contexto da pesquisa:
 {instrucoes}
 {few_shot}
-<<<<<<< HEAD
 {bloco_anterior}
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
-═══════════════════════════════════════════════════
-CATEGORIAS PRÉ-DEFINIDAS — leia com atenção:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+CATEGORIAS PRÃ‰-DEFINIDAS â€” leia com atenÃ§Ã£o:
 {cats_lista}
-═══════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-COMO DECIDIR (siga esta ordem de raciocínio para cada resposta):
+COMO DECIDIR (siga esta ordem de raciocÃ­nio para cada resposta):
 
-PASSO 1 — Tente encaixar em uma categoria pré-definida.
-  Encaixe por INTENÇÃO e SEMÂNTICA, não só por palavras iguais.
+PASSO 1 â€” Tente encaixar em uma categoria prÃ©-definida.
+  Encaixe por INTENÃ‡ÃƒO e SEMÃ‚NTICA, nÃ£o sÃ³ por palavras iguais.
   Exemplos de encaixe correto (validados pelos pesquisadores):
-  - "Por conta do meu trabalho" → "Queria complementar minha formação (adquirir novos conhecimentos)" (exigência profissional = aprendizado)
-  - "Soft skill de comunicação" → "Queria complementar minha formação (adquirir novos conhecimentos)" (desenvolvimento = aprendizado)
-  - "Jovem aprendiz" → "Queria entrar no mercado de trabalho" (inserção no mercado)
-  - "Atualização de currículo" → "Queria entrar no mercado de trabalho" (busca de emprego)
-  - "Banho e tosa" → "Procurava um hobby" (atividade por interesse pessoal)
-  - "Eu já desenho e queria melhorar" → "Procurava um hobby" (aperfeiçoamento de hobby)
+  - "Por conta do meu trabalho" â†’ "Queria complementar minha formaÃ§Ã£o (adquirir novos conhecimentos)" (exigÃªncia profissional = aprendizado)
+  - "Soft skill de comunicaÃ§Ã£o" â†’ "Queria complementar minha formaÃ§Ã£o (adquirir novos conhecimentos)" (desenvolvimento = aprendizado)
+  - "Jovem aprendiz" â†’ "Queria entrar no mercado de trabalho" (inserÃ§Ã£o no mercado)
+  - "AtualizaÃ§Ã£o de currÃ­culo" â†’ "Queria entrar no mercado de trabalho" (busca de emprego)
+  - "Banho e tosa" â†’ "Procurava um hobby" (atividade por interesse pessoal)
+  - "Eu jÃ¡ desenho e queria melhorar" â†’ "Procurava um hobby" (aperfeiÃ§oamento de hobby)
 
-PASSO 2 — SÓ crie categoria nova se a resposta expressar uma intenção que GENUINAMENTE
-  não tem equivalente em nenhuma das categorias pré-definidas.
-  Exemplos que SÃO categorias novas legítimas (validados pelos pesquisadores):
-  - "Segunda renda" → "Complementar renda" (renda extra é diferente de entrar no mercado de trabalho)
-  - "Obrigação escolar / trabalho acadêmico" — não é nenhuma das intenções pré-definidas
-  - "Indicação médica / terapia ocupacional" — fora do escopo das categorias
+PASSO 2 â€” SÃ“ crie categoria nova se a resposta expressar uma intenÃ§Ã£o que GENUINAMENTE
+  nÃ£o tem equivalente em nenhuma das categorias prÃ©-definidas.
+  Exemplos que SÃƒO categorias novas legÃ­timas (validados pelos pesquisadores):
+  - "Segunda renda" â†’ "Complementar renda" (renda extra Ã© diferente de entrar no mercado de trabalho)
+  - "ObrigaÃ§Ã£o escolar / trabalho acadÃªmico" â€” nÃ£o Ã© nenhuma das intenÃ§Ãµes prÃ©-definidas
+  - "IndicaÃ§Ã£o mÃ©dica / terapia ocupacional" â€” fora do escopo das categorias
 
-PASSO 3 — Use null apenas para respostas vazias, ininteligíveis ou "não sei".
+PASSO 3 â€” Use null apenas para respostas vazias, ininteligÃ­veis ou "nÃ£o sei".
 
 Respostas para classificar ({len(respostas_para_classificar)} no total):
 {todas_enumeradas}
 
 Retorne SOMENTE este JSON:
 {{"classificacoes": [
-  {{"indice": 1, "categoria": "nome EXATO da categoria pré-definida", "nova": false}},
+  {{"indice": 1, "categoria": "nome EXATO da categoria prÃ©-definida", "nova": false}},
   {{"indice": 2, "categoria": "nome da categoria nova criada", "nova": true}},
   {{"indice": 3, "categoria": null, "nova": false}}
 ]}}
 
 REGRAS FINAIS:
-- "nova": false → use o nome EXATAMENTE como está nas categorias pré-definidas
-- "nova": true  → categoria nova, 2 a 5 palavras, objetiva
+- "nova": false â†’ use o nome EXATAMENTE como estÃ¡ nas categorias prÃ©-definidas
+- "nova": true  â†’ categoria nova, 2 a 5 palavras, objetiva
 - Classifique TODAS as {len(respostas_para_classificar)} respostas
-- Na dúvida entre encaixar ou criar nova → ENCAIXE na mais próxima"""
+- Na dÃºvida entre encaixar ou criar nova â†’ ENCAIXE na mais prÃ³xima"""
 
         texto_a1 = self._chamar_gpt(system_a1, user_a1,
                                     max_tokens=4000, modelo=MODELO_AGENTE1)
@@ -630,8 +531,8 @@ REGRAS FINAIS:
         except Exception:
             pass
 
-        # ── Monta resultados ──────────────────────────────────────────────────
-        # Para múltipla: agrupa de volta por resposta original
+        # â”€â”€ Monta resultados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Para mÃºltipla: agrupa de volta por resposta original
         if multipla:
             grupos_imp = [[] for _ in respostas_validas]
             grupos_nov = [[] for _ in respostas_validas]
@@ -640,10 +541,7 @@ REGRAS FINAIS:
                 cat = dec.get("categoria")
                 nova = dec.get("nova", False)
                 if cat:
-<<<<<<< HEAD
                     cat = self._capitalizar(cat)
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                     if nova:
                         grupos_nov[idx_orig].append(cat)
                     else:
@@ -657,10 +555,7 @@ REGRAS FINAIS:
                 cat = dec.get("categoria")
                 nova = dec.get("nova", False)
                 if cat:
-<<<<<<< HEAD
                     cat = self._capitalizar(cat)
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                     if nova:
                         col_novo[idx_orig] = cat
                     else:
@@ -670,34 +565,33 @@ REGRAS FINAIS:
             for i, idx_orig in enumerate(indices_validos):
                 imp = col_imputado[idx_orig]
                 nov = col_novo[idx_orig]
-                resultado_str = f"IMP:{imp}" if imp else f"NOVO:{nov}" if nov else "—"
+                resultado_str = f"IMP:{imp}" if imp else f"NOVO:{nov}" if nov else "â€”"
                 callback_progresso(i, len(indices_validos),
                                    respostas_validas[i], resultado_str)
 
         return {"imputado": col_imputado, "novo": col_novo}
 
-<<<<<<< HEAD
     def _vincular_com_lista_anterior(self, respostas: list, lista: list,
                                      instrucoes: str, few_shot: str,
                                      callback_progresso=None) -> list:
         """
         Vincula cada resposta ao item EXATO da lista anterior que melhor a representa.
-        Não cria categorias novas — a lista é o universo completo de saídas.
+        NÃ£o cria categorias novas â€” a lista Ã© o universo completo de saÃ­das.
 
-        Funciona em lotes de 200 e retorna os nomes exatamente como estão na lista.
+        Funciona em lotes de 200 e retorna os nomes exatamente como estÃ£o na lista.
         """
         resultados = ["SEM_RESPOSTA"] * len(respostas)
 
-        # Mapa case-insensitive para garantir nome exato na saída
+        # Mapa case-insensitive para garantir nome exato na saÃ­da
         lista_lower = {c.lower(): c for c in lista}
         cats_formatada = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(lista))
 
         system = (
-            "Você é um especialista em vincular respostas abertas a categorias pré-definidas. "
-            "Sua tarefa é encontrar, para cada resposta, qual categoria da lista melhor a representa — "
-            "por significado, abreviação, sinônimo ou variação ortográfica. "
+            "VocÃª Ã© um especialista em vincular respostas abertas a categorias prÃ©-definidas. "
+            "Sua tarefa Ã© encontrar, para cada resposta, qual categoria da lista melhor a representa â€” "
+            "por significado, abreviaÃ§Ã£o, sinÃ´nimo ou variaÃ§Ã£o ortogrÃ¡fica. "
             "NUNCA invente categorias fora da lista. "
-            "Responda SEMPRE em JSON válido, sem texto fora do JSON."
+            "Responda SEMPRE em JSON vÃ¡lido, sem texto fora do JSON."
         )
 
         TAMANHO_LOTE = 200
@@ -711,20 +605,20 @@ REGRAS FINAIS:
             user = f"""Contexto da pesquisa:
 {instrucoes}
 {few_shot}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LISTA FECHADA — ESTES SÃO OS ÚNICOS VALORES DE SAÍDA PERMITIDOS:
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+LISTA FECHADA â€” ESTES SÃƒO OS ÃšNICOS VALORES DE SAÃDA PERMITIDOS:
 {cats_formatada}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
-REGRAS DE VINCULAÇÃO:
+REGRAS DE VINCULAÃ‡ÃƒO:
 1. Para cada resposta, encontre qual item da lista acima melhor a representa.
-2. Considere: abreviações ("Facha" → "Faculdades Integradas Hélio Alves"),
-   siglas ("CIEE" → "CIEE"), nomes parciais ("Celso Lisboa" → "Centro Universitário Celso Lisboa"),
-   sinônimos e variações ortográficas.
-3. Copie o nome do item da lista EXATAMENTE como está escrito — sem alterar uma letra.
-4. Se a resposta for vazia, ilegível ou "não sei" → use "SEM_RESPOSTA".
-5. Se genuinamente não tiver nenhum equivalente na lista → use "SEM_RESPOSTA".
-6. NUNCA escreva um valor que não esteja na lista acima (exceto "SEM_RESPOSTA").
+2. Considere: abreviaÃ§Ãµes ("Facha" â†’ "Faculdades Integradas HÃ©lio Alves"),
+   siglas ("CIEE" â†’ "CIEE"), nomes parciais ("Celso Lisboa" â†’ "Centro UniversitÃ¡rio Celso Lisboa"),
+   sinÃ´nimos e variaÃ§Ãµes ortogrÃ¡ficas.
+3. Copie o nome do item da lista EXATAMENTE como estÃ¡ escrito â€” sem alterar uma letra.
+4. Se a resposta for vazia, ilegÃ­vel ou "nÃ£o sei" â†’ use "SEM_RESPOSTA".
+5. Se genuinamente nÃ£o tiver nenhum equivalente na lista â†’ use "SEM_RESPOSTA".
+6. NUNCA escreva um valor que nÃ£o esteja na lista acima (exceto "SEM_RESPOSTA").
 
 Respostas para vincular:
 {lote_enum}
@@ -737,12 +631,12 @@ Classifique TODAS as {len(lote)} respostas."""
                                      modelo=MODELO_AGENTE2)
             classificacoes += self._parsear_classificacoes(texto)
 
-        # Aplica resultados — garante nome exato via lookup case-insensitive
+        # Aplica resultados â€” garante nome exato via lookup case-insensitive
         for item in classificacoes:
-            idx = item.get("indice", 0) - 1   # 1-based → 0-based
+            idx = item.get("indice", 0) - 1   # 1-based â†’ 0-based
             if 0 <= idx < len(respostas):
                 cat_raw = (item.get("categoria") or "SEM_RESPOSTA").strip()
-                # Corrige capitalização para o nome exato da lista
+                # Corrige capitalizaÃ§Ã£o para o nome exato da lista
                 cat = lista_lower.get(cat_raw.lower(), cat_raw)
                 resultados[idx] = cat
                 if callback_progresso:
@@ -750,12 +644,10 @@ Classifique TODAS as {len(lote)} respostas."""
 
         return resultados
 
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
     def codificar(self, resposta: str, tipo: str = "livre", contexto_custom: str = "") -> str:
         """
         Codifica uma resposta individual.
-        Usado como fallback — prefira codificar_lote() para processar abas inteiras.
+        Usado como fallback â€” prefira codificar_lote() para processar abas inteiras.
         """
         resposta = str(resposta).strip()
         if not resposta or resposta.lower() in ("nan", "none", ""):
@@ -765,7 +657,7 @@ Classifique TODAS as {len(lote)} respostas."""
         if chave in self._cache:
             return self._cache[chave]
 
-        # Tenta match exato / fuzzy no histórico
+        # Tenta match exato / fuzzy no histÃ³rico
         if tipo in ("livre", "satisfacao"):
             match = self.codigos_base.get(resposta.lower())
             if match:
@@ -781,32 +673,32 @@ Classifique TODAS as {len(lote)} respostas."""
         return resultado
 
 
-    # ── Tipos que NÃO precisam de categorização — só normalização ────────────
-    # Para marcas e definição em 1 palavra, a própria resposta já é a categoria.
-    # O modelo só precisa limpar, corrigir grafia e normalizar — nunca "SEM_RESPOSTA".
+    # â”€â”€ Tipos que NÃƒO precisam de categorizaÃ§Ã£o â€” sÃ³ normalizaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Para marcas e definiÃ§Ã£o em 1 palavra, a prÃ³pria resposta jÃ¡ Ã© a categoria.
+    # O modelo sÃ³ precisa limpar, corrigir grafia e normalizar â€” nunca "SEM_RESPOSTA".
     TIPOS_NORMALIZACAO = {"reconhecimento_marca", "definicao_palavra"}
 
     def _normalizar_lote(self, respostas: list, tipo: str,
                          instrucoes: str, few_shot: str,
                          callback_progresso=None) -> list:
         """
-        Normalização em 2 passos:
-          Passo 1 — Agente 1 vê todos os valores únicos e monta um dicionário
+        NormalizaÃ§Ã£o em 2 passos:
+          Passo 1 â€” Agente 1 vÃª todos os valores Ãºnicos e monta um dicionÃ¡rio
                     de_para: {variacao: nome_oficial}
-          Passo 2 — Aplica o dicionário mecanicamente em cada resposta,
+          Passo 2 â€” Aplica o dicionÃ¡rio mecanicamente em cada resposta,
                     sem pedir ao modelo para "interpretar" de novo.
-        Isso garante agrupamento consistente e elimina cópia-e-cola.
+        Isso garante agrupamento consistente e elimina cÃ³pia-e-cola.
         """
         import re as _re
 
         resultados_norm = ["SEM_RESPOSTA"] * len(respostas)
 
-        # ── Passo 1: dicionário de padronização ───────────────────────────────
-        # Trabalha só com valores únicos para economizar tokens
+        # â”€â”€ Passo 1: dicionÃ¡rio de padronizaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Trabalha sÃ³ com valores Ãºnicos para economizar tokens
         unicos = sorted(set(r.strip() for r in respostas
                             if r.strip() and r.strip().lower() not in
-                            ("nan", "none", "", "nenhuma", "não lembra",
-                             "nao lembra", "não sei", "nao sei")))
+                            ("nan", "none", "", "nenhuma", "nÃ£o lembra",
+                             "nao lembra", "nÃ£o sei", "nao sei")))
 
         if not unicos:
             return resultados_norm
@@ -814,45 +706,45 @@ Classifique TODAS as {len(lote)} respostas."""
         lista_unicos = "\n".join(f"- {v}" for v in unicos)
 
         system_dict = (
-            "Você é um especialista em padronização de nomes de instituições, "
+            "VocÃª Ã© um especialista em padronizaÃ§Ã£o de nomes de instituiÃ§Ãµes, "
             "marcas e entidades brasileiras. "
-            "Seu trabalho é criar um dicionário de-para que converte variações "
+            "Seu trabalho Ã© criar um dicionÃ¡rio de-para que converte variaÃ§Ãµes "
             "informais/erradas para o nome oficial correto. "
-            "Responda SEMPRE em JSON válido, sem texto fora do JSON."
+            "Responda SEMPRE em JSON vÃ¡lido, sem texto fora do JSON."
         )
 
         user_dict = f"""Contexto da pesquisa:
 {instrucoes}
 {few_shot}
-Abaixo estão todos os valores únicos encontrados nas respostas da pesquisa.
-Muitos são a mesma entidade escrita de formas diferentes.
+Abaixo estÃ£o todos os valores Ãºnicos encontrados nas respostas da pesquisa.
+Muitos sÃ£o a mesma entidade escrita de formas diferentes.
 
-Valores únicos encontrados:
+Valores Ãºnicos encontrados:
 {lista_unicos}
 
 Sua tarefa: para CADA valor, identifique a entidade real e defina o nome oficial padronizado.
 
-REGRAS DE PADRONIZAÇÃO:
-1. Siglas ficam em MAIÚSCULO: senai→SENAI, sesc→SESC, sesi→SESI, fgv→FGV,
-   puc→PUC, ufrj→UFRJ, uerj→UERJ, ibmec→Ibmec, faetec→FAETEC, cefet→CEFET,
-   uff→UFF, unirio→UNIRIO, ibm→IBM, espn→ESPN, ifb→IFB, iga→IGA
-2. Nomes próprios: primeira letra maiúscula — "estacio"→"Estácio", "anhanguera"→"Anhanguera"
-3. Agrupe variações da mesma entidade: "Ibemc", "Ibemec", "Ibmec" → todos viram "Ibmec"
-4. Agrupe com e sem complemento: "Faculdade Unirio", "Unirio", "UNIRIO" → todos "UNIRIO"
-5. Corrija acentos: "Estacio"→"Estácio", "Catolica"→"Católica", "Galpao"→"Galpão"
-6. Corrija erros de grafia: "Jfrj"→"UFRJ" NÃO — "Jfrj" é JFRJ (Justiça Federal RJ)
-7. NÃO invente nomes — se não reconhecer, mantenha capitalizado corretamente
-8. Respostas como "Nenhuma", "Não lembra", "Não sei" → use "SEM_MARCA"
+REGRAS DE PADRONIZAÃ‡ÃƒO:
+1. Siglas ficam em MAIÃšSCULO: senaiâ†’SENAI, sescâ†’SESC, sesiâ†’SESI, fgvâ†’FGV,
+   pucâ†’PUC, ufrjâ†’UFRJ, uerjâ†’UERJ, ibmecâ†’Ibmec, faetecâ†’FAETEC, cefetâ†’CEFET,
+   uffâ†’UFF, unirioâ†’UNIRIO, ibmâ†’IBM, espnâ†’ESPN, ifbâ†’IFB, igaâ†’IGA
+2. Nomes prÃ³prios: primeira letra maiÃºscula â€” "estacio"â†’"EstÃ¡cio", "anhanguera"â†’"Anhanguera"
+3. Agrupe variaÃ§Ãµes da mesma entidade: "Ibemc", "Ibemec", "Ibmec" â†’ todos viram "Ibmec"
+4. Agrupe com e sem complemento: "Faculdade Unirio", "Unirio", "UNIRIO" â†’ todos "UNIRIO"
+5. Corrija acentos: "Estacio"â†’"EstÃ¡cio", "Catolica"â†’"CatÃ³lica", "Galpao"â†’"GalpÃ£o"
+6. Corrija erros de grafia: "Jfrj"â†’"UFRJ" NÃƒO â€” "Jfrj" Ã© JFRJ (JustiÃ§a Federal RJ)
+7. NÃƒO invente nomes â€” se nÃ£o reconhecer, mantenha capitalizado corretamente
+8. Respostas como "Nenhuma", "NÃ£o lembra", "NÃ£o sei" â†’ use "SEM_MARCA"
 
 Retorne SOMENTE este JSON:
 {{"dicionario": {{"valor_original": "nome_oficial", "outro_valor": "nome_oficial", ...}}}}
 
-IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
+IMPORTANTE: inclua TODOS os {len(unicos)} valores Ãºnicos no dicionÃ¡rio."""
 
         texto_dict = self._chamar_gpt(system_dict, user_dict,
                                       max_tokens=3000, modelo=MODELO_AGENTE2)
 
-        # Parseia o dicionário
+        # Parseia o dicionÃ¡rio
         dicionario = {}
         try:
             texto_limpo = _re.sub(r"```[a-z]*", "", texto_dict).strip("`").strip()
@@ -862,7 +754,7 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
         except Exception:
             pass
 
-        # ── Passo 2: aplica o dicionário em cada resposta ─────────────────────
+        # â”€â”€ Passo 2: aplica o dicionÃ¡rio em cada resposta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         for i, resp in enumerate(respostas):
             r = resp.strip()
             if not r or r.lower() in ("nan", "none", ""):
@@ -880,20 +772,17 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
 
         return resultados_norm
 
-    # ── Fluxo principal: 2 agentes em sequência ──────────────────────────────
+    # â”€â”€ Fluxo principal: 2 agentes em sequÃªncia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def codificar_lote(self, respostas: list, tipo: str = "livre",
                        contexto_custom: str = "",
-<<<<<<< HEAD
                        categorias_anteriores: list = None,
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                        callback_progresso=None) -> list:
         """
         Fluxo de 2 agentes:
-          1. Agente Categorizador — lê todas as respostas e define as categorias
-          2. Agente Classificador — associa cada resposta a uma categoria
+          1. Agente Categorizador â€” lÃª todas as respostas e define as categorias
+          2. Agente Classificador â€” associa cada resposta a uma categoria
 
-        callback_progresso(i, total, resposta, categoria) chamado a cada classificação.
+        callback_progresso(i, total, resposta, categoria) chamado a cada classificaÃ§Ã£o.
         Retorna lista de categorias na mesma ordem das respostas de entrada.
         """
         respostas_str   = [str(r).strip() for r in respostas]
@@ -913,38 +802,33 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
         exemplos_banco = self.banco.buscar_exemplos(tipo, n=20)
         few_shot = _formatar_few_shot(exemplos_banco)
 
-        # ── Tipos de normalização: agente único, sem lista fechada ────────────
-<<<<<<< HEAD
-        # Se há categorias_anteriores, NÃO normaliza — usa fluxo padrão com
+        # â”€â”€ Tipos de normalizaÃ§Ã£o: agente Ãºnico, sem lista fechada â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Se hÃ¡ categorias_anteriores, NÃƒO normaliza â€” usa fluxo padrÃ£o com
         # a lista fechada, garantindo que os nomes exatos sejam preservados.
         if tipo in self.TIPOS_NORMALIZACAO and not categorias_anteriores:
-=======
-        if tipo in self.TIPOS_NORMALIZACAO:
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
             norm = self._normalizar_lote(respostas_validas, tipo, instrucoes,
                                          few_shot, callback_progresso)
             for i, idx_orig in enumerate(indices_validos):
                 resultados[idx_orig] = norm[i]
             return resultados
 
-<<<<<<< HEAD
-        # ── Bloco de pesquisa anterior (sem lista anterior: comportamento normal) ─
+        # â”€â”€ Bloco de pesquisa anterior (sem lista anterior: comportamento normal) â”€
         cats_hint = ""
         if self.categorias:
-            cats_hint = f"\nCategorias já usadas (reutilize se adequado): {', '.join(self.categorias)}\n"
+            cats_hint = f"\nCategorias jÃ¡ usadas (reutilize se adequado): {', '.join(self.categorias)}\n"
         regra_novas = (
-            "- Crie QUANTAS categorias forem necessárias para cobrir todas as respostas\n"
-            "- Prefira entre 10 e 30 categorias — use mais se a base for diversa\n"
+            "- Crie QUANTAS categorias forem necessÃ¡rias para cobrir todas as respostas\n"
+            "- Prefira entre 10 e 30 categorias â€” use mais se a base for diversa\n"
             "- Cada categoria: 1 a 4 palavras, clara e objetiva\n"
-            "- Cubra TODOS os temas — nenhuma resposta deve ficar sem encaixe"
+            "- Cubra TODOS os temas â€” nenhuma resposta deve ficar sem encaixe"
         )
 
         todas_enumeradas = "\n".join(f"{i+1}. {r}" for i, r in enumerate(respostas_validas))
 
-        # ── Com pesquisa anterior: vinculador dedicado (sem Agente 1) ─────────
-        # Não usa o fluxo de 2 agentes — em vez disso, um único agente recebe
-        # a lista fechada e vincula cada resposta ao item mais próximo dela.
-        # Sem liberdade criativa: a lista é o universo completo de saídas.
+        # â”€â”€ Com pesquisa anterior: vinculador dedicado (sem Agente 1) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # NÃ£o usa o fluxo de 2 agentes â€” em vez disso, um Ãºnico agente recebe
+        # a lista fechada e vincula cada resposta ao item mais prÃ³ximo dela.
+        # Sem liberdade criativa: a lista Ã© o universo completo de saÃ­das.
         if categorias_anteriores:
             vinculados = self._vincular_com_lista_anterior(
                 respostas_validas, categorias_anteriores,
@@ -953,102 +837,64 @@ IMPORTANTE: inclua TODOS os {len(unicos)} valores únicos no dicionário."""
                 resultados[idx_orig] = vinculados[i]
             return resultados
 
-        # ── Agente 1: Categorizador ───────────────────────────────────────────
-        # Se há pesquisa anterior, as categorias já estão definidas — pula o Agente 1.
-        # Qualquer chamada ao Agente 1 criaria categorias novas mesmo sendo instruído
-        # a não fazer isso; a única garantia real é não chamá-lo.
+        # â”€â”€ Agente 1: Categorizador â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Se hÃ¡ pesquisa anterior, as categorias jÃ¡ estÃ£o definidas â€” pula o Agente 1.
+        # Qualquer chamada ao Agente 1 criaria categorias novas mesmo sendo instruÃ­do
+        # a nÃ£o fazer isso; a Ãºnica garantia real Ã© nÃ£o chamÃ¡-lo.
         if categorias_anteriores:
             categorias_criadas = [self._capitalizar(c) for c in categorias_anteriores]
         else:
             system_cat = (
-                "Você é um especialista em análise qualitativa de pesquisas. "
-                "Seu trabalho é ler respostas abertas e definir um conjunto enxuto de categorias temáticas. "
-                "Responda SEMPRE em JSON válido, sem texto fora do JSON."
+                "VocÃª Ã© um especialista em anÃ¡lise qualitativa de pesquisas. "
+                "Seu trabalho Ã© ler respostas abertas e definir um conjunto enxuto de categorias temÃ¡ticas. "
+                "Responda SEMPRE em JSON vÃ¡lido, sem texto fora do JSON."
             )
             user_cat = f"""Contexto da pesquisa:
-=======
-        cats_hint = ""
-        if self.categorias:
-            cats_hint = f"\nCategorias já usadas (reutilize se adequado): {', '.join(self.categorias)}\n"
-
-        # ── Agente 1: Categorizador — vê TODAS as respostas ─────────────────
-        # Sem amostragem: quanto mais respostas o Agente 1 ver, melhores
-        # e mais completas serão as categorias criadas para o Agente 2.
-        # O custo extra vale — erros do Agente 2 por categoria inexistente
-        # custam mais (revisão manual) do que tokens do Agente 1.
-        todas_enumeradas = "\n".join(f"{i+1}. {r}" for i, r in enumerate(respostas_validas))
-
-        system_cat = (
-            "Você é um especialista em análise qualitativa de pesquisas. "
-            "Seu trabalho é ler respostas abertas e definir um conjunto enxuto de categorias temáticas. "
-            "Responda SEMPRE em JSON válido, sem texto fora do JSON."
-        )
-        user_cat = f"""Contexto da pesquisa:
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 {instrucoes}
 {cats_hint}{few_shot}
 Todas as respostas coletadas ({len(respostas_validas)} no total):
 {todas_enumeradas}
 
-Analise TODAS as respostas acima e defina as categorias necessárias para cobri-las.
-Retorne SOMENTE este JSON (sem markdown, sem explicação):
+Analise TODAS as respostas acima e defina as categorias necessÃ¡rias para cobri-las.
+Retorne SOMENTE este JSON (sem markdown, sem explicaÃ§Ã£o):
 {{"categorias": ["categoria1", "categoria2", ...]}}
 
 Regras:
-<<<<<<< HEAD
 {regra_novas}
-- NÃO crie a categoria "SEM_RESPOSTA" — ela só existe para respostas literalmente em branco"""
+- NÃƒO crie a categoria "SEM_RESPOSTA" â€” ela sÃ³ existe para respostas literalmente em branco"""
 
             texto_cats = self._chamar_gpt(system_cat, user_cat, max_tokens=1500,
                                              modelo=MODELO_AGENTE1)
             categorias_criadas = self._parsear_categorias(texto_cats)
 
-            # Se o agente não retornou nada válido, usa categorias já conhecidas ou genérico
+            # Se o agente nÃ£o retornou nada vÃ¡lido, usa categorias jÃ¡ conhecidas ou genÃ©rico
             if not categorias_criadas:
                 categorias_criadas = self.categorias[:] or ["positivo", "negativo", "neutro", "SEM_RESPOSTA"]
 
         # Capitaliza todas as categorias antes de passar ao Agente 2
         categorias_criadas = [self._capitalizar(c) for c in categorias_criadas]
-=======
-- Crie QUANTAS categorias forem necessárias para cobrir todas as respostas
-- Prefira entre 10 e 30 categorias — use mais se a base for diversa
-- Cada categoria: 1 a 4 palavras, clara e objetiva
-- Cubra TODOS os temas — nenhuma resposta deve ficar sem encaixe
-- NÃO crie a categoria "SEM_RESPOSTA" — ela só existe para respostas literalmente em branco"""
 
-        texto_cats = self._chamar_gpt(system_cat, user_cat, max_tokens=1500,
-                                         modelo=MODELO_AGENTE1)
-        categorias_criadas = self._parsear_categorias(texto_cats)
-
-        # Se o agente não retornou nada válido, usa categorias já conhecidas ou genérico
-        if not categorias_criadas:
-            categorias_criadas = self.categorias[:] or ["positivo", "negativo", "neutro", "SEM_RESPOSTA"]
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
-
-        # ── Agente 2: Classificador em lotes de 200 ──────────────────────────
+        # â”€â”€ Agente 2: Classificador em lotes de 200 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         system_clf = (
-            "Você é um classificador de texto preciso e consistente para análise qualitativa de pesquisas. "
+            "VocÃª Ã© um classificador de texto preciso e consistente para anÃ¡lise qualitativa de pesquisas. "
             "Classifique cada resposta em exatamente uma das categorias fornecidas, "
             "seguindo rigorosamente as regras e exemplos do contexto. "
-            "Responda SEMPRE em JSON válido, sem texto fora do JSON."
+            "Responda SEMPRE em JSON vÃ¡lido, sem texto fora do JSON."
         )
         cats_lista = "\n".join(f"- {c}" for c in categorias_criadas)
 
-<<<<<<< HEAD
-        # Aviso extra para o Agente 2 quando há pesquisa anterior
+        # Aviso extra para o Agente 2 quando hÃ¡ pesquisa anterior
         aviso_anterior_clf = ""
         if categorias_anteriores:
             aviso_anterior_clf = (
-                "\n⚠️  ATENÇÃO — REGRA INVIOLÁVEL:\n"
-                "As categorias listadas abaixo são os ÚNICOS valores permitidos.\n"
-                "Você DEVE copiar o nome da categoria EXATAMENTE como está na lista —\n"
+                "\nâš ï¸  ATENÃ‡ÃƒO â€” REGRA INVIOLÃVEL:\n"
+                "As categorias listadas abaixo sÃ£o os ÃšNICOS valores permitidos.\n"
+                "VocÃª DEVE copiar o nome da categoria EXATAMENTE como estÃ¡ na lista â€”\n"
                 "sem abreviar, sem reformular, sem omitir palavras.\n"
-                "Exemplo: se a lista tem 'Centro Universitário Celso Lisboa',\n"
-                "a resposta deve ser 'Centro Universitário Celso Lisboa', NÃO 'Celso Lisboa'.\n"
+                "Exemplo: se a lista tem 'Centro UniversitÃ¡rio Celso Lisboa',\n"
+                "a resposta deve ser 'Centro UniversitÃ¡rio Celso Lisboa', NÃƒO 'Celso Lisboa'.\n"
             )
 
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         TAMANHO_LOTE = 200
         classificacoes = []
 
@@ -1057,63 +903,46 @@ Regras:
             lote = respostas_validas[inicio:fim]
             lote_enumerado = "\n".join(f"{inicio+i+1}. {r}" for i, r in enumerate(lote))
 
-            user_clf = f"""Regras e contexto da codificação:
+            user_clf = f"""Regras e contexto da codificaÃ§Ã£o:
 {instrucoes}
-<<<<<<< HEAD
 {few_shot}{aviso_anterior_clf}
-Categorias disponíveis (copie o nome EXATAMENTE como está escrito abaixo):
-=======
-{few_shot}
-Categorias disponíveis (use EXATAMENTE estes nomes):
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
+Categorias disponÃ­veis (copie o nome EXATAMENTE como estÃ¡ escrito abaixo):
 {cats_lista}
 
 Respostas para classificar:
 {lote_enumerado}
 
 Classifique CADA resposta em exatamente UMA categoria da lista acima.
-Retorne SOMENTE este JSON (sem markdown, sem explicação):
+Retorne SOMENTE este JSON (sem markdown, sem explicaÃ§Ã£o):
 {{"classificacoes": [{{"indice": 1, "categoria": "..."}}, {{"indice": 2, "categoria": "..."}}, ...]}}
 
 Regras adicionais:
-- Os indices devem começar em {inicio+1}
+- Os indices devem comeÃ§ar em {inicio+1}
 - Classifique TODAS as {len(lote)} respostas deste lote
-<<<<<<< HEAD
-- O valor de "categoria" deve ser COPIADO LITERALMENTE da lista — nenhuma alteração permitida
-- É PROIBIDO usar "SEM_RESPOSTA" se a resposta tiver qualquer conteúdo reconhecível
-- Se não se encaixar perfeitamente, escolha a categoria MAIS PRÓXIMA da lista
-=======
-- É PROIBIDO usar "SEM_RESPOSTA" se a resposta tiver qualquer conteúdo reconhecível
-- Se não se encaixar perfeitamente, escolha a categoria MAIS PRÓXIMA
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
-- "SEM_RESPOSTA" só para resposta completamente vazia, ilegível ou "não sei\""""
+- O valor de "categoria" deve ser COPIADO LITERALMENTE da lista â€” nenhuma alteraÃ§Ã£o permitida
+- Ã‰ PROIBIDO usar "SEM_RESPOSTA" se a resposta tiver qualquer conteÃºdo reconhecÃ­vel
+- Se nÃ£o se encaixar perfeitamente, escolha a categoria MAIS PRÃ“XIMA da lista
+- "SEM_RESPOSTA" sÃ³ para resposta completamente vazia, ilegÃ­vel ou "nÃ£o sei\""""
 
             texto_clf = self._chamar_gpt(system_clf, user_clf, max_tokens=4000,
                                              modelo=MODELO_AGENTE2)
             classificacoes += self._parsear_classificacoes(texto_clf)
 
-        # ── Montar resultados na ordem original ───────────────────────────────
-<<<<<<< HEAD
-        # Lookup case-insensitive para corrigir só capitalização quando há lista anterior
+        # â”€â”€ Montar resultados na ordem original â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Lookup case-insensitive para corrigir sÃ³ capitalizaÃ§Ã£o quando hÃ¡ lista anterior
         cats_set_lower = {c.lower(): c for c in categorias_criadas} if categorias_anteriores else {}
 
-=======
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
         for item in classificacoes:
-            idx_local = item.get("indice", 0) - 1   # 1-based → 0-based
+            idx_local = item.get("indice", 0) - 1   # 1-based â†’ 0-based
             if 0 <= idx_local < len(indices_validos):
                 idx_original = indices_validos[idx_local]
-<<<<<<< HEAD
                 cat = self._capitalizar(item.get("categoria", "Nao_classificado"))
 
-                # Se há pesquisa anterior: corrige só capitalização.
-                # NÃO faz fuzzy — forçar um match ruim é pior que manter o original.
+                # Se hÃ¡ pesquisa anterior: corrige sÃ³ capitalizaÃ§Ã£o.
+                # NÃƒO faz fuzzy â€” forÃ§ar um match ruim Ã© pior que manter o original.
                 if categorias_anteriores:
                     cat = cats_set_lower.get(cat.lower(), cat)
 
-=======
-                cat = item.get("categoria", "nao_classificado")
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
                 resultados[idx_original] = cat
 
                 chave = f"{tipo}::{respostas_validas[idx_local].lower()}"
@@ -1130,7 +959,7 @@ Regras adicionais:
 
         return resultados
 
-    # ── Classificação individual (fallback) ───────────────────────────────────
+    # â”€â”€ ClassificaÃ§Ã£o individual (fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _classificar_individual(self, resposta: str, tipo: str, contexto_custom: str) -> str:
         config     = TIPOS_PERGUNTA.get(tipo, TIPOS_PERGUNTA["livre"])
@@ -1140,9 +969,9 @@ Regras adicionais:
         cats_str = ""
         if self.categorias:
             unique = list(dict.fromkeys(self.categorias))[:20]
-            cats_str = f"\nCategorias já usadas (prefira reutilizar): {', '.join(unique)}\n"
+            cats_str = f"\nCategorias jÃ¡ usadas (prefira reutilizar): {', '.join(unique)}\n"
 
-        system = "Você é especialista em análise qualitativa. Responda APENAS com o nome da categoria, sem explicações."
+        system = "VocÃª Ã© especialista em anÃ¡lise qualitativa. Responda APENAS com o nome da categoria, sem explicaÃ§Ãµes."
         user   = f"""{instrucoes}
 {cats_str}
 Resposta: "{resposta}"
@@ -1151,7 +980,7 @@ Categoria:"""
         resultado = self._chamar_gpt(system, user, max_tokens=60)
         return self._limpar(resultado)
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _buscar_fuzzy(self, resposta: str):
         resp_lower = resposta.lower()
@@ -1185,28 +1014,24 @@ Categoria:"""
 
     def _limpar(self, texto: str) -> str:
         cat = texto.strip().strip('"\'').strip(".").split("\n")[0]
-        for prefixo in ["categoria:", "resposta:", "categoria é", "a categoria é"]:
+        for prefixo in ["categoria:", "resposta:", "categoria Ã©", "a categoria Ã©"]:
             if cat.lower().startswith(prefixo.lower()):
                 cat = cat[len(prefixo):].strip()
-<<<<<<< HEAD
         cat = cat.strip()
         if not cat:
             return "Nao_classificado"
-        # Primeira letra sempre maiúscula, resto preservado
+        # Primeira letra sempre maiÃºscula, resto preservado
         return cat[0].upper() + cat[1:]
 
     @staticmethod
     def _capitalizar(cat: str) -> str:
-        """Garante que a primeira letra da categoria seja maiúscula."""
+        """Garante que a primeira letra da categoria seja maiÃºscula."""
         cat = cat.strip()
         if not cat:
             return cat
         return cat[0].upper() + cat[1:]
-=======
-        return cat.strip() if cat.strip() else "nao_classificado"
->>>>>>> 6f8655e1ba9f62285bca01d4f1b80fe19097f13e
 
-    # ── Cache ─────────────────────────────────────────────────────────────────
+    # â”€â”€ Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def exportar_cache(self, caminho: str):
         with open(caminho, "w", encoding="utf-8") as f:
