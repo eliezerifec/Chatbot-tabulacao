@@ -528,9 +528,10 @@ def gerar_ppt(df, perguntas: list[dict],
 
             # Dados para o gráfico
             tem_sub = ("is_sub" in tabela.columns and tabela["is_sub"].any())
+            rotulos = tabela[" "].fillna("").astype(str)
             dados = tabela[
-                (~tabela[" "].str.lower().str.strip().isin(["total"])) &
-                (~tabela[" "].str.startswith("NPS =")) &
+                (~rotulos.str.lower().str.strip().isin(["total"])) &
+                (~rotulos.str.startswith("NPS =")) &
                 (~tabela.get("is_sub",
                   pd.Series([False]*len(tabela))).fillna(False))
             ].copy()
@@ -586,7 +587,7 @@ def gerar_ppt(df, perguntas: list[dict],
             _set_text(sh, str(num))
 
     prs_dest.save(saida)
-    print(f"✓ PPT gerado: {saida}  ({num} slides)")
+    print(f"PPT gerado: {saida}  ({num} slides)")
     return saida
 
 
@@ -710,5 +711,5 @@ def _gerar_fallback(df, perguntas, saida, titulo, subtitulo, periodo, secoes):
         num += 1
 
     prs.save(saida)
-    print(f"✓ PPT (fallback) gerado: {saida}  ({num} slides)")
+    print(f"PPT (fallback) gerado: {saida}  ({num} slides)")
     return saida

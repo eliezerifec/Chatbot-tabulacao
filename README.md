@@ -1,6 +1,6 @@
 ﻿# Codificador de Pesquisas com IA
 
-Aplicacao web em **Streamlit** para codificacao automatica de respostas abertas com IA.
+Aplicacao web em **Streamlit** para codificacao automatica de respostas abertas com IA, tabulacao e geracao de Excel/PowerPoint.
 
 ## Pre-requisitos
 
@@ -35,6 +35,13 @@ OPENAI_API_KEY = "sk-..."
 
 ## Como usar
 
+O app tem duas areas principais:
+
+- **COD - Codificacao**: codifica respostas abertas com IA e exporta a base codificada.
+- **TAB - Tabulacao**: detecta perguntas, permite revisar tipo/ativacao e gera Excel + PowerPoint.
+
+### Codificacao
+
 1. Envie a planilha `.xlsx` ou `.csv`.
 2. Escolha a coluna com as respostas abertas.
 3. Configure o tipo da pergunta, modo de resposta e coluna de saida.
@@ -42,6 +49,14 @@ OPENAI_API_KEY = "sk-..."
 5. Escreva o contexto da pergunta para guiar o modelo.
 6. Clique em **Iniciar codificacao**.
 7. Baixe o Excel codificado.
+
+### Tabulacao
+
+1. Abra a aba **TAB - Tabulacao**.
+2. Escolha se quer tabular o arquivo enviado ou o resultado codificado.
+3. Clique em **Detectar perguntas**.
+4. Revise quais perguntas ficam ativas e ajuste o tipo quando necessario.
+5. Gere o Excel de tabulacao e/ou o PowerPoint.
 
 ## Configuracoes avancadas
 
