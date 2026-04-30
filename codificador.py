@@ -67,95 +67,95 @@ MODOS_RESPOSTA = {
 # â”€â”€ Tipos de pergunta predefinidos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 TIPOS_PERGUNTA = {
     "reconhecimento_marca": {
-        "label": "ðŸ·  Reconhecimento de Marca",
+        "label": "Reconhecimento de Marca",
         "descricao": "Quais marcas o participante lembrou de ter visto",
-        "instrucoes": """VocÃª estÃ¡ codificando respostas de uma pergunta de reconhecimento de marca espontÃ¢nea.
+        "instrucoes": """Você esté codificando respostas de uma pergunta de reconhecimento de marca espontânea.
 O participante respondeu quais marcas lembrou de ter visto em um evento.
 
-REGRAS OBRIGATÃ“RIAS:
+REGRAS OBRIGATÓRIAS:
 1. Extraia APENAS os nomes das marcas mencionadas
-2. Se houver mais de uma marca, separe com ", " (vÃ­rgula espaÃ§o)
+2. Se houver mais de uma marca, separe com ", " (vÍ­rgula espaço)
 3. Normalize o nome: capitalize corretamente (ex: "coca cola" â†’ "Coca-Cola")
-4. Ignore palavras que nÃ£o sÃ£o marcas (ex: "nÃ£o lembro", "nenhuma")
-5. Se nÃ£o houver marca identificÃ¡vel, use a categoria: SEM_MARCA
+4. Ignore palavras que nâo sâo marcas (ex: "nâo lembro", "nenhuma")
+5. Se nâo houver marca identificável, use a categoria: Não soube responder
 6. Cada categoria deve ser o nome da marca normalizado
 
 Exemplos de classificaÃ§Ã£o:
   "vi a coca cola e a pepsi"  â†’  Coca-Cola, Pepsi
   "brahma"                    â†’  Brahma
-  "nÃ£o lembro de nenhuma"     â†’  SEM_MARCA
+  "nâo lembro de nenhuma"     â†’  Não soube responder
   "Nike e Adidas estavam lÃ¡"  â†’  Nike, Adidas""",
     },
 
     "satisfacao": {
-        "label": "ðŸ˜Š  SatisfaÃ§Ã£o / Motivo",
+        "label": "Satisfação / Motivo",
         "descricao": "Por que o participante gostou do evento",
-        "instrucoes": """VocÃª estÃ¡ codificando respostas abertas de satisfaÃ§Ã£o de evento.
-O participante explicou por que gostou (ou nÃ£o gostou) do evento.
+        "instrucoes": """Você está codificando respostas abertas de satisfação de evento.
+O participante explicou por que gostou (ou nâo gostou) do evento.
 
-REGRAS OBRIGATÃ“RIAS:
-1. Crie UMA categoria temÃ¡tica que resuma a resposta
-2. A categoria deve ter NO MÃXIMO 3 palavras, ser uma frase curta e direta
-3. Use substantivos/adjetivos descritivos (ex: "boa organizaÃ§Ã£o", "atraÃ§Ãµes diversas", "atendimento ruim")
+REGRAS OBRIGATPORIAS:
+1. Crie UMA categoria temática que resuma a resposta
+2. A categoria deve ter NO MÁXIMO 3 palavras, ser uma frase curta e direta
+3. Use substantivos/adjetivos descritivos (ex: "boa organizaÇÃo", "atrações diversas", "atendimento ruim")
 4. Agrupe respostas com o MESMO TEMA na mesma categoria
 5. Seja consistente: respostas similares = mesma categoria
 
-Exemplos de classificaÃ§Ã£o:
-  "adorei a organizaÃ§Ã£o do evento, tudo muito bem feito"  â†’  boa organizaÃ§Ã£o
-  "as atraÃ§Ãµes foram incrÃ­veis"                           â†’  atraÃ§Ãµes diversas
-  "o atendimento foi pÃ©ssimo"                             â†’  atendimento ruim
-  "gostei muito da mÃºsica ao vivo"                        â†’  mÃºsica ao vivo
-  "estava muito cheio e desorganizado"                    â†’  superlotaÃ§Ã£o desorganizada""",
+Exemplos de classificação:
+  "adorei a organizaçã£o do evento, tudo muito bem feito"  â†’  boa organização
+  "as atrações foram incrí­veis"                           â†’  atrações diversas
+  "o atendimento foi péssimo"                             â†’  atendimento ruim
+  "gostei muito da música ao vivo"                        â†’  música ao vivo
+  "estava muito cheio e desorganizado"                    â†’  superlotação desorganizada""",
     },
 
     "definicao_palavra": {
-        "label": "ðŸ’¬  DefiniÃ§Ã£o em Uma Palavra",
+        "label": "Definição em Uma Palavra",
         "descricao": "Uma palavra que define a experiÃªncia",
         "instrucoes": """VocÃª estÃ¡ codificando respostas de uma pergunta "defina em uma palavra".
 O participante escolheu uma palavra para descrever sua experiÃªncia.
 
-REGRAS OBRIGATÃ“RIAS:
-1. Normalize a palavra: corrija grafia, capitalize a primeira letra
-2. Agrupe palavras com o MESMO significado ou raiz em uma categoria Ãºnica:
-   - "lindo", "linda", "lindÃ­ssimo" â†’ Lindo
-   - "Ã³timo", "Ã³tima", "otimo" â†’ Ã“timo
-   - "incrÃ­vel", "incrivel", "incredivel" â†’ IncrÃ­vel
-3. Use sempre o masculino singular como forma canÃ´nica
+REGRAS OBRIGATóRIAS:
+1. Normalize a palavra: corrija grafia, capitalize apenas a primeira letra da primeira palavra
+2. Agrupe palavras com o MESMO significado ou raiz em uma categoria única:
+   - "lindo", "linda", "lindí­ssimo" â†’ Lindo
+   - "Ótimo", "Ótima", "otimo" â†’ ótimo
+   - "incrÃível", "incrivel", "incredivel" â†’ Incrí­vel
+3. Use sempre o masculino singular como forma canônica
 4. Se a resposta tiver mais de uma palavra, use apenas a mais relevante
 
-Exemplos de classificaÃ§Ã£o:
+Exemplos de classificação:
   "linda"       â†’  Lindo
-  "INCRIVEL"    â†’  IncrÃ­vel
+  "INCRIVEL"    â†’  Incrí­vel
   "muito bom"   â†’  Bom
   "maravilhoso" â†’  Maravilhoso
-  "otimo"       â†’  Ã“timo""",
+  "otimo"       â†’  Ótimo""",
     },
 
     "local_moradia": {
-        "label": "ðŸ“  Local de Moradia",
+        "label": "Local de Moradia",
         "descricao": "Cidade, estado ou paÃ­s onde mora",
-        "instrucoes": """VocÃª estÃ¡ codificando respostas de uma pergunta sobre local de moradia.
+        "instrucoes": """Você está codificando respostas de uma pergunta sobre local de moradia.
 
-REGRAS OBRIGATÃ“RIAS:
-1. Extraia APENAS o nome do estado ou paÃ­s
+REGRAS OBRIGATÓRIAS:
+1. Extraia APENAS o nome do estado ou paí­s
 2. Se a pessoa mencionou cidade, retorne o ESTADO correspondente
-3. Use o nome completo do estado (ex: "SP" â†’ "SÃ£o Paulo")
-4. Se for fora do Brasil, retorne o nome do PAÃS
+3. Use o nome completo do estado (ex: "SP" â†’ "São Paulo")
+4. Se for fora do Brasil, retorne o nome do PAÍS
 5. Normalize a grafia: capitalize corretamente
-6. Se nÃ£o for possÃ­vel identificar, use a categoria: NÃƒO IDENTIFICADO
+6. Se não for possÃ­vel identificar, use a categoria: Não sabe
 
-Exemplos de classificaÃ§Ã£o:
-  "moro em SÃ£o Paulo capital"  â†’  SÃ£o Paulo
+Exemplos de classificaçãoo:
+  "moro em São Paulo capital"  â†’  São Paulo
   "Rio de Janeiro, Copacabana" â†’  Rio de Janeiro
   "sou de BH"                  â†’  Minas Gerais
   "moro em SP"                 â†’  SÃ£o Paulo
   "Argentina"                  â†’  Argentina
-  "nÃ£o sei"                    â†’  NÃƒO IDENTIFICADO""",
+  "não sei"                    â†’  Não sabe""",
     },
 
     "livre": {
-        "label": "âœï¸  Personalizado",
-        "descricao": "Usar contexto personalizado que vocÃª escrever",
+        "label": "Personalizado",
+        "descricao": "Usar contexto personalizado que você escrever",
         "instrucoes": None,
     },
 }
@@ -193,7 +193,7 @@ def _formatar_few_shot_biblioteca(exemplos: list) -> str:
         return ""
 
     linhas = [
-        "\nBiblioteca histÃ³rica de codificaÃ§Ã£o â€” use como referÃªncia principal de estilo e granularidade:"
+        "\nBiblioteca histórica de codificação â€” use como referência principal de estilo e granularidade:"
     ]
 
     for e in exemplos:

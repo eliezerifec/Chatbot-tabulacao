@@ -1,4 +1,4 @@
-import os
+﻿import os
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -7,40 +7,195 @@ import pandas as pd
 import streamlit as st
 
 
+# =============================================================================
+# CONFIGURACAO DA PAGINA
+# =============================================================================
 st.set_page_config(
     page_title="Codificador IFec",
-    page_icon="IFec",
+    page_icon="logo_ifec.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 
+# =============================================================================
+# ESTILO VISUAL (paleta IFec + cards neumorphic + sidebar arredondada)
+# =============================================================================
 st.markdown(
     """
     <style>
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    [data-testid="stSidebar"] { background: #111827; }
-    [data-testid="stSidebar"] * { color: #f9fafb; }
-    [data-testid="stSidebar"] .stButton button { width: 100%; }
-    .metric-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 14px 16px;
+    /* ---------- Reset / fundo geral ---------- */
+    .stApp { background: #ececec; }
+    .block-container {
+        padding-top: 1.2rem;
+        padding-bottom: 3rem;
+        max-width: 1100px;
+    }
+    header[data-testid="stHeader"] { background: transparent; }
+
+    /* ---------- Sidebar arredondada estilo cartao ---------- */
+    [data-testid="stSidebar"] > div:first-child {
         background: #ffffff;
+        border-radius: 0 28px 28px 0;
+        box-shadow: 4px 4px 14px rgba(0,0,0,0.08);
+        padding-top: 1.2rem;
     }
-    .section-title {
-        font-size: 0.9rem;
-        font-weight: 700;
+    [data-testid="stSidebar"] * { color: #111827; }
+    [data-testid="stSidebar"] .stButton button {
+        width: 100%;
+        background: transparent;
         color: #111827;
-        margin: 0 0 0.35rem 0;
+        border: none;
+        border-radius: 999px;
+        padding: 0.55rem 0.8rem;
+        font-weight: 700;
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-align: center;
+        transition: background 0.15s ease;
     }
-    .muted { color: #6b7280; font-size: 0.86rem; }
+    [data-testid="stSidebar"] .stButton button:hover {
+        background: #eef2ff;
+        color: #1e3a8a;
+    }
+    [data-testid="stSidebar"] .stButton button:focus { box-shadow: none; }
+
+    /* Botao de menu ATIVO (azul preenchido) */
+    [data-testid="stSidebar"] .nav-active .stButton button,
+    [data-testid="stSidebar"] .nav-active .stButton button:hover {
+        background: #1e3a8a;
+        color: #ffffff;
+    }
+
+    /* ---------- Cards neumorphic ---------- */
+    .ifec-card {
+        background: #ececec;
+        border-radius: 28px;
+        padding: 2rem 2.2rem;
+        box-shadow:
+            8px 8px 18px rgba(163,177,198,0.55),
+            -8px -8px 18px rgba(255,255,255,0.85);
+        margin-bottom: 1.4rem;
+    }
+    .ifec-card-inner {
+        background: #ececec;
+        border-radius: 22px;
+        padding: 1.4rem 1.6rem;
+        box-shadow:
+            inset 4px 4px 8px rgba(163,177,198,0.45),
+            inset -4px -4px 8px rgba(255,255,255,0.85);
+        margin-bottom: 1rem;
+    }
+
+    /* Titulo de secao centralizado */
+    .ifec-section-title {
+        text-align: center;
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 0.3rem 0;
+        letter-spacing: 0.01em;
+    }
+    .ifec-section-sub {
+        text-align: center;
+        color: #475569;
+        font-size: 0.95rem;
+        margin: 0 0 1.2rem 0;
+    }
+
+    /* Badge "Pergunta X de Y" */
+    .ifec-pill {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ececec;
+        border-radius: 999px;
+        padding: 0.65rem 1.6rem;
+        box-shadow:
+            inset 4px 4px 8px rgba(163,177,198,0.45),
+            inset -4px -4px 8px rgba(255,255,255,0.85);
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0.4rem 0 1rem 0;
+    }
+
+    /* ---------- Inputs em forma de pilula ---------- */
+    .stTextInput input,
+    .stSelectbox div[data-baseweb="select"] > div,
+    .stMultiSelect div[data-baseweb="select"] > div {
+        background: #ffffff !important;
+        border-radius: 999px !important;
+        border: 1px solid #d1d5db !important;
+    }
+    .stTextArea textarea {
+        background: #ffffff !important;
+        border-radius: 18px !important;
+        border: 1px solid #d1d5db !important;
+    }
+
+    /* File uploader em estilo dropzone arredondado */
+    [data-testid="stFileUploader"] section {
+        background: #ececec;
+        border-radius: 22px;
+        border: 2px dashed #cbd5e1;
+        padding: 2rem 1rem;
+        box-shadow:
+            inset 4px 4px 8px rgba(163,177,198,0.35),
+            inset -4px -4px 8px rgba(255,255,255,0.85);
+    }
+    [data-testid="stFileUploader"] section:hover {
+        border-color: #1e3a8a;
+    }
+
+    /* Botoes primarios e download */
+    .stButton button[kind="primary"],
+    .stDownloadButton button {
+        background: #1e3a8a !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 999px !important;
+        padding: 0.55rem 1.6rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.04em;
+    }
+    .stButton button[kind="primary"]:hover,
+    .stDownloadButton button:hover {
+        background: #1d4ed8 !important;
+        color: #ffffff !important;
+    }
+
+    /* Cabecalho da pagina */
+    .ifec-page-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0.2rem 0 0.4rem 0;
+    }
+    .ifec-page-sub { color: #475569; margin-bottom: 1rem; }
+
+    /* Step indicator (4 bolinhas) */
+    .ifec-steps {
+        display: flex;
+        justify-content: center;
+        gap: 0.6rem;
+        margin: 0.2rem 0 1.2rem 0;
+    }
+    .ifec-step {
+        width: 0.6rem; height: 0.6rem; border-radius: 999px;
+        background: #cbd5e1;
+    }
+    .ifec-step.active { background: #1e3a8a; width: 1.6rem; }
+    .ifec-step.done   { background: #1e3a8a; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
+# =============================================================================
+# FUNCOES DE BACKEND (preservadas do app original)
+# =============================================================================
 def _secret_to_env() -> None:
     if os.getenv("OPENAI_API_KEY"):
         return
@@ -55,10 +210,8 @@ def _secret_to_env() -> None:
 @st.cache_resource(show_spinner=False)
 def _get_codificador():
     _secret_to_env()
-    import importlib
-    import codificador as _mod_cod
-    importlib.reload(_mod_cod)
-    return _mod_cod.CodificadorIA()
+    from codificador import CodificadorIA
+    return CodificadorIA()
 
 
 @st.cache_data(show_spinner=False)
@@ -66,7 +219,6 @@ def _read_uploaded_file(name: str, data: bytes) -> dict[str, pd.DataFrame]:
     bio = BytesIO(data)
     if name.lower().endswith(".csv"):
         return {"Planilha": pd.read_csv(bio)}
-
     xl = pd.ExcelFile(bio)
     return {sheet: xl.parse(sheet) for sheet in xl.sheet_names}
 
@@ -85,13 +237,10 @@ def _read_tabulation_file(name: str, data: bytes, two_line_header: bool) -> pd.D
     bio = BytesIO(data)
     if name.lower().endswith(".csv"):
         return pd.read_csv(bio)
-
     if two_line_header:
         from tabulador import set_header
-
         raw = pd.read_excel(bio, header=None, sheet_name=0)
         return set_header(raw)
-
     return pd.read_excel(bio, sheet_name=0)
 
 
@@ -99,7 +248,6 @@ def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
     clean = df.copy()
     if isinstance(clean.columns, pd.MultiIndex):
         clean.columns = ["_".join(str(c) for c in col).strip("_") for col in clean.columns]
-
     seen: dict[str, int] = {}
     cols = []
     for col in clean.columns:
@@ -111,7 +259,6 @@ def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
             seen[name] = 0
             cols.append(name)
     clean.columns = cols
-
     for col in clean.columns:
         if isinstance(clean[col], pd.DataFrame):
             clean[col] = clean[col].iloc[:, 0]
@@ -124,7 +271,6 @@ def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str) -> bytes:
     from tabulador import exportar_excel
-
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         path = tmp.name
     try:
@@ -143,15 +289,9 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str) -> by
             pass
 
 
-def _build_tab_ppt(
-    df: pd.DataFrame,
-    perguntas: list[dict],
-    titulo: str,
-    subtitulo: str,
-    periodo: str,
-) -> bytes:
+def _build_tab_ppt(df: pd.DataFrame, perguntas: list[dict], titulo: str,
+                   subtitulo: str, periodo: str) -> bytes:
     from gerador_ppt import gerar_ppt
-
     with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
         path = tmp.name
     try:
@@ -183,52 +323,14 @@ def _parse_list(raw: str) -> list[str]:
 def _load_taxonomies():
     _secret_to_env()
     from codificador import MODOS_RESPOSTA, TIPOS_PERGUNTA
-
     return TIPOS_PERGUNTA, MODOS_RESPOSTA
 
 
-def _import_previous(uploaded) -> dict[str, list[str]]:
-    if uploaded is None:
-        return {}
-
-    sheets = _read_uploaded_file(uploaded.name, uploaded.getvalue())
-    previous: dict[str, list[str]] = {}
-    for sheet_name, df in sheets.items():
-        if df.empty:
-            continue
-        default_col = df.columns[-1]
-        category_col = st.selectbox(
-            f"Coluna de categorias em {sheet_name}",
-            list(df.columns),
-            index=list(df.columns).index(default_col),
-            key=f"prev_col_{sheet_name}",
-        )
-        cats = (
-            df[category_col]
-            .dropna()
-            .astype(str)
-            .map(str.strip)
-            .loc[lambda s: s.ne("")]
-            .drop_duplicates()
-            .tolist()
-        )
-        previous[sheet_name] = cats
-    return previous
-
-
-def _run_coding(
-    sheets: dict[str, pd.DataFrame],
-    configs: dict[str, dict],
-    global_context: str,
-    previous_categories: dict[str, list[str]],
-) -> dict[str, pd.DataFrame]:
+def _run_coding(sheets, configs, global_context, previous_categories):
     codificador = _get_codificador()
     result_sheets = {name: df.copy() for name, df in sheets.items()}
-
     selected = [name for name, cfg in configs.items() if cfg["selected"]]
     progress = st.progress(0, text="Preparando codificacao...")
-    log_box = st.empty()
-    logs: list[str] = []
 
     for sheet_idx, sheet_name in enumerate(selected):
         cfg = configs[sheet_name]
@@ -237,9 +339,6 @@ def _run_coding(
         cats_prev = previous_categories.get(sheet_name, [])
         cats_imp = cats_prev or cfg["categories"]
         context = cfg["context"] if cfg["type_key"] == "livre" else global_context
-
-        logs.append(f"{sheet_name}: {len(respostas)} respostas")
-        log_box.code("\n".join(logs[-15:]), language="text")
 
         def on_progress(i_local, total_local, resposta, categoria):
             pct = (sheet_idx + ((i_local + 1) / max(total_local, 1))) / max(len(selected), 1)
@@ -263,208 +362,592 @@ def _run_coding(
             df[cfg["new_col"]] = coded["novo"]
         else:
             df[cfg["output_col"]] = coded["resultado"]
-
         result_sheets[sheet_name] = df
-        logs.append(f"{sheet_name}: concluida")
-        log_box.code("\n".join(logs[-15:]), language="text")
 
     progress.progress(1.0, text="Codificacao concluida.")
     return result_sheets
 
 
-def _render_codificador(uploaded, previous_file, api_ok: bool) -> None:
-    if uploaded is None:
-        st.info("Envie uma planilha .xlsx ou .csv para comecar.")
-        return
+# =============================================================================
+# HELPERS DE UI
+# =============================================================================
+def _step_indicator(current: int, total: int = 4) -> None:
+    """Bolinhas indicadoras de etapa do wizard."""
+    bolas = []
+    for i in range(1, total + 1):
+        if i < current:
+            bolas.append('<span class="ifec-step done"></span>')
+        elif i == current:
+            bolas.append('<span class="ifec-step active"></span>')
+        else:
+            bolas.append('<span class="ifec-step"></span>')
+    st.markdown(f'<div class="ifec-steps">{"".join(bolas)}</div>', unsafe_allow_html=True)
 
-    try:
-        sheets = _read_uploaded_file(uploaded.name, uploaded.getvalue())
-    except Exception as exc:
-        st.error(f"Nao foi possivel ler o arquivo: {exc}")
-        return
 
-    total_rows = sum(len(df) for df in sheets.values())
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Arquivo", uploaded.name)
-    c2.metric("Abas", len(sheets))
-    c3.metric("Linhas", total_rows)
+def _ss_get(key, default=None):
+    return st.session_state.get(key, default)
 
+
+def _ss_set(key, value):
+    st.session_state[key] = value
+
+
+# =============================================================================
+# MODO CODIFICADOR (wizard de 4 passos)
+# =============================================================================
+def _render_codificador(api_ok: bool) -> None:
     if not api_ok:
-        st.warning("Configure OPENAI_API_KEY em Secrets para habilitar a codificacao com IA.")
+        st.warning("Configure OPENAI_API_KEY em Secrets para habilitar a codificacao.")
+
+    step = _ss_get("cod_step", 1)
+
+    # Etapa 4: resultado final ja existe -> mostra direto
+    if step == 4 and "result_sheets" in st.session_state:
+        _step_indicator(4)
+        _render_resultado_codificacao()
         return
 
-    tipos_pergunta, modos_resposta = _load_taxonomies()
+    _step_indicator(step)
 
-    global_context = st.text_area(
-        "Contexto geral",
-        placeholder="Descreva o objetivo da pesquisa e os criterios de classificacao.",
-        height=100,
+    if step == 1:
+        _step1_upload()
+    elif step == 2:
+        _step2_perguntas()
+    elif step == 3:
+        _step3_executar()
+    else:
+        _ss_set("cod_step", 1)
+        _step1_upload()
+
+
+# ---- Etapa 1 ---------------------------------------------------------------
+def _step1_upload() -> None:
+    st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="ifec-section-sub">Importe a base que sera codificada</p>',
+        unsafe_allow_html=True,
     )
 
-    with st.expander("Pesquisa anterior", expanded=previous_file is not None):
-        previous_categories = _import_previous(previous_file)
-        if previous_categories:
-            st.success(
-                f"{sum(len(v) for v in previous_categories.values())} categorias carregadas."
-            )
-        else:
-            st.caption("Opcional: carregue uma pesquisa ja codificada para reutilizar categorias.")
+    uploaded = st.file_uploader(
+        "Arraste e solte ou clique para importar a base a ser codificada",
+        type=["xlsx", "csv"],
+        help="O arquivo deve ser .xlsx ou .csv",
+        key="cod_upload_main",
+    )
 
-    st.subheader("Configuracao das abas")
-    configs: dict[str, dict] = {}
+    st.markdown(
+        '<p style="text-align:center; color:#475569; font-size:0.86rem; margin-top:0.4rem;">'
+        'O arquivo deve ser xlsx</p>',
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    recorrente = st.checkbox(
+        "Pesquisa recorrente? Deseja inserir categorias de pesquisas anteriores?",
+        value=_ss_get("cod_recorrente", False),
+        key="cod_recorrente",
+    )
+
+    previous_file = None
+    if recorrente:
+        previous_file = st.file_uploader(
+            "Arraste e solte ou clique para importar o dicionario da base anterior",
+            type=["xlsx", "csv"],
+            help="O arquivo deve ser .xlsx ou .csv",
+            key="cod_upload_prev",
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Salva arquivos no session_state
+    if uploaded is not None:
+        _ss_set("cod_uploaded_name", uploaded.name)
+        _ss_set("cod_uploaded_bytes", uploaded.getvalue())
+    if previous_file is not None:
+        _ss_set("cod_prev_name", previous_file.name)
+        _ss_set("cod_prev_bytes", previous_file.getvalue())
+    elif not recorrente:
+        st.session_state.pop("cod_prev_name", None)
+        st.session_state.pop("cod_prev_bytes", None)
+        st.session_state.pop("cod_prev_categories", None)
+
+    # Acoes
+    _, col_right = st.columns([1, 1])
+    with col_right:
+        pode_avancar = "cod_uploaded_bytes" in st.session_state
+        if st.button("Avancar", type="primary", disabled=not pode_avancar,
+                     use_container_width=True, key="cod_next_1"):
+            _ss_set("cod_step", 2)
+            _ss_set("cod_q_idx", 0)
+            st.rerun()
+
+
+# ---- Etapa 2 ---------------------------------------------------------------
+def _step2_perguntas() -> None:
+    # carrega base principal
+    try:
+        sheets = _read_uploaded_file(
+            _ss_get("cod_uploaded_name"),
+            _ss_get("cod_uploaded_bytes"),
+        )
+    except Exception as exc:
+        st.error(f"Nao foi possivel ler o arquivo: {exc}")
+        if st.button("Voltar", key="back_err"):
+            _ss_set("cod_step", 1)
+            st.rerun()
+        return
+
+    # carrega base anterior (se houver)
+    previous_categories: dict[str, list[str]] = {}
+    if _ss_get("cod_prev_bytes") is not None:
+        with st.expander("Pesquisa anterior — confirme as colunas de categoria", expanded=False):
+            prev_sheets = _read_uploaded_file(
+                _ss_get("cod_prev_name"),
+                _ss_get("cod_prev_bytes"),
+            )
+            for prev_name, prev_df in prev_sheets.items():
+                if prev_df.empty:
+                    continue
+                default_col = prev_df.columns[-1]
+                category_col = st.selectbox(
+                    f"Coluna de categorias em '{prev_name}'",
+                    list(prev_df.columns),
+                    index=list(prev_df.columns).index(default_col),
+                    key=f"prev_col_{prev_name}",
+                )
+                cats = (
+                    prev_df[category_col].dropna().astype(str).map(str.strip)
+                    .loc[lambda s: s.ne("")].drop_duplicates().tolist()
+                )
+                previous_categories[prev_name] = cats
+        _ss_set("cod_prev_categories", previous_categories)
+    else:
+        previous_categories = _ss_get("cod_prev_categories", {}) or {}
+
+    tipos_pergunta, modos_resposta = _load_taxonomies()
     type_labels = {data["label"]: key for key, data in tipos_pergunta.items()}
     mode_labels = {data["label"]: key for key, data in modos_resposta.items()}
 
-    for sheet_name, df in sheets.items():
-        with st.expander(sheet_name, expanded=True):
-            cols = list(df.columns)
-            left, mid, right = st.columns([1, 2, 2])
-            selected = left.checkbox("Codificar", value=True, key=f"sel_{sheet_name}")
-            input_col = mid.selectbox("Coluna de entrada", cols, key=f"in_{sheet_name}")
-            output_col = right.text_input(
-                "Coluna de saida",
-                value="codigo_ia",
-                key=f"out_{sheet_name}",
-            )
+    sheet_names = list(sheets.keys())
+    total_q = len(sheet_names)
+    q_idx = max(0, min(_ss_get("cod_q_idx", 0), total_q - 1))
+    sheet_name = sheet_names[q_idx]
+    df = sheets[sheet_name]
 
-            col_a, col_b = st.columns(2)
-            type_label = col_a.selectbox(
-                "Tipo da pergunta",
-                list(type_labels),
-                index=list(type_labels).index(next(k for k, v in type_labels.items() if v == "livre")),
-                key=f"type_{sheet_name}",
-            )
-            mode_label = col_b.selectbox(
-                "Modo de resposta",
-                list(mode_labels),
-                key=f"mode_{sheet_name}",
-            )
-
-            mode_key = mode_labels[mode_label]
-            categories = []
-            imputed_col = "col_imputado"
-            new_col = "col_nova"
-            if "semi" in mode_key:
-                sem_a, sem_b = st.columns(2)
-                imputed_col = sem_a.text_input(
-                    "Coluna de imputacao",
-                    value="col_imputado",
-                    key=f"imp_{sheet_name}",
-                )
-                new_col = sem_b.text_input(
-                    "Coluna de novas categorias",
-                    value="col_nova",
-                    key=f"new_{sheet_name}",
-                )
-                categories = _parse_list(
-                    st.text_area(
-                        "Categorias pre-definidas",
-                        placeholder="Uma categoria por linha ou separadas por virgula.",
-                        key=f"cats_{sheet_name}",
-                    )
-                )
-
-            custom_context = st.text_area(
-                "Contexto especifico",
-                placeholder="Use quando o tipo da pergunta for Personalizado.",
-                key=f"ctx_{sheet_name}",
-                height=80,
-            )
-
-            configs[sheet_name] = {
-                "selected": selected,
-                "input_col": input_col,
-                "output_col": output_col.strip() or "codigo_ia",
-                "type_key": type_labels[type_label],
-                "mode_key": mode_key,
-                "categories": categories,
-                "imputed_col": imputed_col.strip() or "col_imputado",
-                "new_col": new_col.strip() or "col_nova",
-                "context": custom_context.strip(),
-            }
-
-            st.dataframe(df.head(20), use_container_width=True, hide_index=True)
-
-    can_run = api_ok and any(cfg["selected"] for cfg in configs.values())
-    if st.button("Iniciar codificacao", type="primary", disabled=not can_run):
-        with st.spinner("Codificando respostas..."):
-            try:
-                result_sheets = _run_coding(
-                    sheets,
-                    configs,
-                    global_context.strip(),
-                    previous_categories,
-                )
-            except Exception as exc:
-                st.error(f"Erro durante a codificacao: {exc}")
-                return
-
-        st.session_state["result_sheets"] = result_sheets
-        st.success("Codificacao finalizada.")
-
-    if "result_sheets" in st.session_state:
-        st.subheader("Resultado")
-        preview_sheet = st.selectbox(
-            "Aba para visualizar",
-            list(st.session_state["result_sheets"].keys()),
-            key="preview_sheet",
-        )
-        st.dataframe(
-            st.session_state["result_sheets"][preview_sheet].head(100),
-            use_container_width=True,
-            hide_index=True,
-        )
-        st.download_button(
-            "Baixar Excel codificado",
-            data=_to_excel(st.session_state["result_sheets"]),
-            file_name="base_codificada.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
-
-def _render_tabulador(uploaded) -> None:
-    st.subheader("Tabulador")
-    st.caption("Detecta perguntas, gera tabulacao em Excel e monta PowerPoint.")
-
-    fonte = st.radio(
-        "Fonte da base",
-        ["Arquivo enviado", "Resultado codificado"],
-        horizontal=True,
-        disabled="result_sheets" not in st.session_state,
+    # ---- Card principal ----
+    st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
+    st.markdown('<p class="ifec-section-title">Perguntas</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="ifec-section-sub">Selecione as colunas, o tipo de pergunta '
+        'e a biblioteca da base anterior</p>',
+        unsafe_allow_html=True,
     )
 
-    if fonte == "Resultado codificado" and "result_sheets" in st.session_state:
+    # Navegacao Pergunta X de Y
+    nav_l, nav_c, nav_r = st.columns([1, 6, 1])
+    with nav_l:
+        if st.button("‹", key="q_prev", disabled=q_idx == 0,
+                     use_container_width=True):
+            _ss_set("cod_q_idx", q_idx - 1)
+            st.rerun()
+    with nav_c:
+        st.markdown(
+            f'<div class="ifec-pill">Pergunta {q_idx + 1} de {total_q} '
+            f'&nbsp;&nbsp;<span style="color:#64748b; font-weight:500;">'
+            f'({sheet_name})</span></div>',
+            unsafe_allow_html=True,
+        )
+    with nav_r:
+        if st.button("›", key="q_next", disabled=q_idx >= total_q - 1,
+                     use_container_width=True):
+            _ss_set("cod_q_idx", q_idx + 1)
+            st.rerun()
+
+    # Recupera config previa desta aba
+    cfg_prev = _ss_get(f"cod_cfg_{sheet_name}", {}) or {}
+
+    cols = list(df.columns)
+
+    selected = st.checkbox(
+        "Codificar esta aba",
+        value=cfg_prev.get("selected", True),
+        key=f"sel_{sheet_name}",
+    )
+
+    input_col = st.selectbox(
+        "Coluna de Resposta",
+        cols,
+        index=cols.index(cfg_prev["input_col"]) if cfg_prev.get("input_col") in cols else 0,
+        key=f"in_{sheet_name}",
+    )
+
+    output_col = st.text_input(
+        "Coluna de codificacao",
+        value=cfg_prev.get("output_col", "codigo_ia"),
+        key=f"out_{sheet_name}",
+    )
+
+    type_options = list(type_labels.keys())
+    default_type_label = next(k for k, v in type_labels.items() if v == "livre")
+    type_label = st.selectbox(
+        "Tipo de pergunta",
+        type_options,
+        index=type_options.index(cfg_prev.get("type_label", default_type_label))
+              if cfg_prev.get("type_label", default_type_label) in type_options
+              else type_options.index(default_type_label),
+        key=f"type_{sheet_name}",
+    )
+
+    # Aba base anterior (se houver pesquisa anterior carregada)
+    aba_anterior = ""
+    if previous_categories:
+        opcoes_aba_ant = ["(nenhuma)"] + list(previous_categories.keys())
+        aba_pref = cfg_prev.get("aba_anterior", "(nenhuma)")
+        idx_default = opcoes_aba_ant.index(aba_pref) if aba_pref in opcoes_aba_ant else 0
+        aba_anterior = st.selectbox(
+            "Aba base anterior",
+            opcoes_aba_ant,
+            index=idx_default,
+            key=f"aba_ant_{sheet_name}",
+        )
+
+    mode_options = list(mode_labels.keys())
+    mode_pref = cfg_prev.get("mode_label", mode_options[0])
+    mode_label = st.selectbox(
+        "Modo de resposta",
+        mode_options,
+        index=mode_options.index(mode_pref) if mode_pref in mode_options else 0,
+        key=f"mode_{sheet_name}",
+    )
+    mode_key = mode_labels[mode_label]
+
+    # Campos extras
+    imputed_col = cfg_prev.get("imputed_col", "col_imputado")
+    new_col = cfg_prev.get("new_col", "col_nova")
+    categories: list[str] = cfg_prev.get("categories", [])
+    if "semi" in mode_key:
+        sem_a, sem_b = st.columns(2)
+        with sem_a:
+            imputed_col = st.text_input(
+                "Coluna de imputacao",
+                value=imputed_col,
+                key=f"imp_{sheet_name}",
+            )
+        with sem_b:
+            new_col = st.text_input(
+                "Coluna de novas categorias",
+                value=new_col,
+                key=f"new_{sheet_name}",
+            )
+        categories = _parse_list(
+            st.text_area(
+                "Categorias pre-definidas",
+                value=", ".join(categories),
+                placeholder="Uma categoria por linha ou separadas por virgula.",
+                key=f"cats_{sheet_name}",
+            )
+        )
+
+    custom_context = st.text_area(
+        "Contexto especifico desta pergunta",
+        value=cfg_prev.get("context", ""),
+        placeholder="Use quando o tipo da pergunta for Personalizado.",
+        key=f"ctx_{sheet_name}",
+        height=80,
+    )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Configuracoes auxiliares fora do carrossel
+    with st.expander("Contexto geral da pesquisa", expanded=False):
+        global_context = st.text_area(
+            "Descreva o objetivo da pesquisa e os criterios de classificacao",
+            value=_ss_get("cod_global_context", ""),
+            height=100,
+            key="cod_global_context_input",
+        )
+        _ss_set("cod_global_context", global_context)
+
+    with st.expander("Previa dos dados desta aba", expanded=False):
+        st.dataframe(df.head(20), use_container_width=True, hide_index=True)
+
+    # Salva config desta aba
+    cfg_atual = {
+        "selected": selected,
+        "input_col": input_col,
+        "output_col": output_col.strip() or "codigo_ia",
+        "type_label": type_label,
+        "type_key": type_labels[type_label],
+        "mode_label": mode_label,
+        "mode_key": mode_key,
+        "categories": categories,
+        "imputed_col": imputed_col.strip() or "col_imputado",
+        "new_col": new_col.strip() or "col_nova",
+        "context": custom_context.strip(),
+        "aba_anterior": aba_anterior,
+    }
+    _ss_set(f"cod_cfg_{sheet_name}", cfg_atual)
+
+    # Acoes da etapa
+    bt1, _, bt3 = st.columns([1, 1, 1])
+    with bt1:
+        if st.button("Voltar", key="cod_back_2", use_container_width=True):
+            _ss_set("cod_step", 1)
+            st.rerun()
+    with bt3:
+        todas_configuradas = all(
+            _ss_get(f"cod_cfg_{n}") is not None for n in sheet_names
+        )
+        if st.button("Iniciar codificacao", type="primary",
+                     disabled=not todas_configuradas, use_container_width=True,
+                     key="cod_next_2"):
+            _ss_set("cod_step", 3)
+            st.rerun()
+
+
+# ---- Etapa 3 ---------------------------------------------------------------
+def _step3_executar() -> None:
+    """Executa a codificacao com spinner — sem log ao vivo."""
+    st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="ifec-section-title">Codificacao em andamento</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p class="ifec-section-sub">Aguarde — a IA esta categorizando todas as respostas.</p>',
+        unsafe_allow_html=True,
+    )
+
+    try:
+        sheets = _read_uploaded_file(
+            _ss_get("cod_uploaded_name"),
+            _ss_get("cod_uploaded_bytes"),
+        )
+    except Exception as exc:
+        st.error(f"Erro ao reler o arquivo: {exc}")
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    configs = {}
+    previous_categories = _ss_get("cod_prev_categories", {}) or {}
+    previous_for_run: dict[str, list[str]] = {}
+
+    for sheet_name in sheets.keys():
+        cfg = _ss_get(f"cod_cfg_{sheet_name}")
+        if not cfg:
+            continue
+        configs[sheet_name] = {
+            "selected": cfg["selected"],
+            "input_col": cfg["input_col"],
+            "output_col": cfg["output_col"],
+            "type_key": cfg["type_key"],
+            "mode_key": cfg["mode_key"],
+            "categories": cfg["categories"],
+            "imputed_col": cfg["imputed_col"],
+            "new_col": cfg["new_col"],
+            "context": cfg["context"],
+        }
+        aba_ant = cfg.get("aba_anterior", "")
+        if aba_ant and aba_ant != "(nenhuma)" and aba_ant in previous_categories:
+            previous_for_run[sheet_name] = previous_categories[aba_ant]
+
+    global_context = _ss_get("cod_global_context", "")
+
+    with st.spinner("Codificando respostas..."):
+        try:
+            result_sheets = _run_coding(
+                sheets, configs, global_context.strip(), previous_for_run
+            )
+        except Exception as exc:
+            st.error(f"Erro durante a codificacao: {exc}")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if st.button("Voltar para configuracao", key="back_to_cfg"):
+                _ss_set("cod_step", 2)
+                st.rerun()
+            return
+
+    _ss_set("result_sheets", result_sheets)
+    st.success("Codificacao finalizada com sucesso!")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.button("Ver resultado", type="primary", use_container_width=True,
+                 key="cod_next_3"):
+        _ss_set("cod_step", 4)
+        st.rerun()
+
+
+# ---- Etapa 4 ---------------------------------------------------------------
+def _render_resultado_codificacao() -> None:
+    result_sheets: dict[str, pd.DataFrame] = _ss_get("result_sheets", {})
+    if not result_sheets:
+        st.info("Nenhum resultado disponivel ainda.")
+        return
+
+    st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="ifec-section-title">Frequencia de categorias</p>',
+        unsafe_allow_html=True,
+    )
+
+    preview_sheet = st.selectbox(
+        "Aba para analisar",
+        list(result_sheets.keys()),
+        key="preview_sheet",
+    )
+    df_res = result_sheets[preview_sheet]
+    cfg = _ss_get(f"cod_cfg_{preview_sheet}", {}) or {}
+    out_col = cfg.get("output_col", "codigo_ia")
+    if out_col not in df_res.columns:
+        for c in [cfg.get("imputed_col"), cfg.get("new_col")]:
+            if c and c in df_res.columns:
+                out_col = c
+                break
+
+    # Frequencia (com explode pra resp multi-categoria separadas por ;)
+    freq = pd.Series(dtype=int)
+    if out_col in df_res.columns:
+        serie = df_res[out_col].dropna().astype(str).map(str.strip)
+        serie = serie.str.split(";").explode().map(str.strip)
+        serie = serie[serie.ne("")]
+        freq = serie.value_counts()
+
+    # Layout: dois quadros lado a lado
+    left, right = st.columns(2)
+    with left:
+        st.markdown('<div class="ifec-card-inner">', unsafe_allow_html=True)
+        st.markdown("**Categorias criadas**")
+        if not freq.empty:
+            cat_df = freq.reset_index()
+            cat_df.columns = ["Categoria", "Respostas"]
+            cat_selecionada = st.radio(
+                "Selecione uma categoria para ver as respostas",
+                cat_df["Categoria"].tolist(),
+                key=f"cat_sel_{preview_sheet}",
+                label_visibility="collapsed",
+            )
+            st.dataframe(
+                cat_df, use_container_width=True, hide_index=True, height=320
+            )
+        else:
+            cat_selecionada = None
+            st.caption("Nenhuma categoria detectada na coluna de saida.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with right:
+        st.markdown('<div class="ifec-card-inner">', unsafe_allow_html=True)
+        st.markdown("**Respostas para a categoria selecionada**")
+        if cat_selecionada and out_col in df_res.columns:
+            input_col = cfg.get("input_col")
+            cols_show = [c for c in [input_col, out_col] if c and c in df_res.columns]
+            mascara = (
+                df_res[out_col].astype(str).str.contains(
+                    str(cat_selecionada), case=False, na=False, regex=False
+                )
+            )
+            st.dataframe(
+                df_res.loc[mascara, cols_show].head(200),
+                use_container_width=True,
+                hide_index=True,
+                height=320,
+            )
+        else:
+            st.caption("Selecione uma categoria a esquerda.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Download centralizado
+    st.markdown(
+        '<div style="display:flex; justify-content:center; margin-top:1rem;">',
+        unsafe_allow_html=True,
+    )
+    st.download_button(
+        "Baixar planilha codificada",
+        data=_to_excel(result_sheets),
+        file_name="base_codificada.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Acoes secundarias
+    a, b = st.columns(2)
+    with a:
+        if st.button("Reconfigurar perguntas", use_container_width=True,
+                     key="reconfig_btn"):
+            _ss_set("cod_step", 2)
+            st.rerun()
+    with b:
+        if st.button("Iniciar nova codificacao", use_container_width=True,
+                     key="reset_btn"):
+            for k in list(st.session_state.keys()):
+                if k.startswith("cod_") or k == "result_sheets":
+                    st.session_state.pop(k, None)
+            _ss_set("cod_step", 1)
+            st.rerun()
+
+
+# =============================================================================
+# MODO TABULADOR (mesmo visual neumorphic)
+# =============================================================================
+def _render_tabulador() -> None:
+    st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="ifec-section-title">Tabulacao automatica</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p class="ifec-section-sub">Detecta perguntas, gera tabulacao em Excel e PowerPoint</p>',
+        unsafe_allow_html=True,
+    )
+
+    fonte_options = ["Arquivo enviado"]
+    if "result_sheets" in st.session_state:
+        fonte_options.append("Resultado codificado")
+    fonte = st.radio("Fonte da base", fonte_options, horizontal=True)
+
+    df_tab: pd.DataFrame | None = None
+    source_name = ""
+
+    if fonte == "Resultado codificado":
         sheet_name = st.selectbox(
-            "Aba para tabular",
+            "Aba codificada para tabular",
             list(st.session_state["result_sheets"].keys()),
             key="tab_result_sheet",
         )
         df_tab = st.session_state["result_sheets"][sheet_name].copy()
         source_name = sheet_name
     else:
-        if uploaded is None:
-            st.info("Envie uma planilha na barra lateral para usar o tabulador.")
+        upload = st.file_uploader(
+            "Arraste e solte ou clique para importar a base",
+            type=["xlsx", "csv"],
+            key="tab_upload",
+        )
+        if upload is None:
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.info("Envie uma planilha para iniciar a tabulacao.")
             return
         two_line_header = st.checkbox(
-            "Usar cabecalho em duas linhas do SurveyMonkey/TabIFec",
+            "Cabecalho em duas linhas (SurveyMonkey/TabIFec)",
             value=True,
-            help="Combina as duas primeiras linhas como nomes de colunas, igual ao app local.",
+            help="Combina as duas primeiras linhas como nomes de colunas.",
         )
         try:
-            df_tab = _read_tabulation_file(uploaded.name, uploaded.getvalue(), two_line_header)
+            df_tab = _read_tabulation_file(
+                upload.name, upload.getvalue(), two_line_header
+            )
         except Exception as exc:
-            st.error(f"Nao foi possivel preparar a base para tabulacao: {exc}")
+            st.error(f"Nao foi possivel preparar a base: {exc}")
+            st.markdown('</div>', unsafe_allow_html=True)
             return
-        source_name = Path(uploaded.name).stem
-
-    from tabulador import TIPOS_LABEL, detectar_perguntas, tabular_pergunta
+        source_name = Path(upload.name).stem
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Base", source_name)
     c2.metric("Respondentes", len(df_tab))
     c3.metric("Colunas", len(df_tab.columns))
 
-    if st.button("Detectar perguntas", type="primary"):
+    if st.button("Detectar perguntas", type="primary", key="tab_detect"):
+        from tabulador import detectar_perguntas
         try:
             st.session_state["tab_questions"] = detectar_perguntas(df_tab)
             st.session_state["tab_source_name"] = source_name
@@ -473,31 +956,39 @@ def _render_tabulador(uploaded) -> None:
 
     perguntas_detectadas = st.session_state.get("tab_questions", [])
     if not perguntas_detectadas:
-        st.dataframe(df_tab.head(30), use_container_width=True, hide_index=True)
+        with st.expander("Previa da base", expanded=True):
+            st.dataframe(df_tab.head(30), use_container_width=True, hide_index=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         return
 
     st.success(f"{len(perguntas_detectadas)} pergunta(s) detectada(s).")
 
     titulo = st.text_input("Titulo do relatorio", value="Pesquisa IFec RJ", key="tab_title")
-    subtitulo = st.text_input("Subtitulo do PowerPoint", value="", key="tab_subtitle")
-    periodo = st.text_input("Periodo", value="", key="tab_period")
+    sub_a, sub_b = st.columns(2)
+    with sub_a:
+        subtitulo = st.text_input("Subtitulo do PowerPoint", value="", key="tab_subtitle")
+    with sub_b:
+        periodo = st.text_input("Periodo", value="", key="tab_period")
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    from tabulador import TIPOS_LABEL, tabular_pergunta
     tipo_keys = list(TIPOS_LABEL.keys())
     tipo_labels = [f"{key} - {TIPOS_LABEL[key]}" for key in tipo_keys]
-    perguntas_config = []
+    perguntas_config: list[dict] = []
 
     for idx, pergunta in enumerate(perguntas_detectadas):
         label = f"{pergunta.get('num', f'P{idx + 1:02d}')} - {pergunta.get('pergunta', '')}"
-        with st.expander(label, expanded=idx < 3):
+        with st.expander(label, expanded=idx < 2):
             top_a, top_b, top_c = st.columns([1, 2, 4])
-            ativo = top_a.checkbox("Ativa", value=pergunta.get("ativo", True), key=f"tab_active_{idx}")
+            ativo = top_a.checkbox(
+                "Ativa", value=pergunta.get("ativo", True), key=f"tab_active_{idx}"
+            )
             tipo_atual = pergunta.get("tipo", "ABERTA")
-            tipo_index = tipo_keys.index(tipo_atual) if tipo_atual in tipo_keys else tipo_keys.index("ABERTA")
+            tipo_index = tipo_keys.index(tipo_atual) if tipo_atual in tipo_keys \
+                         else tipo_keys.index("ABERTA")
             tipo_label = top_b.selectbox(
-                "Tipo",
-                tipo_labels,
-                index=tipo_index,
-                key=f"tab_type_{idx}",
+                "Tipo", tipo_labels, index=tipo_index, key=f"tab_type_{idx}"
             )
             texto = top_c.text_input(
                 "Pergunta",
@@ -518,26 +1009,34 @@ def _render_tabulador(uploaded) -> None:
             cfg["nota"] = nota.strip()
             perguntas_config.append(cfg)
 
+            colunas = cfg.get("colunas", [])
             st.caption(
-                "Colunas: " + ", ".join(str(c) for c in cfg.get("colunas", [])[:6])
-                + ("..." if len(cfg.get("colunas", [])) > 6 else "")
+                "Colunas: " + ", ".join(str(c) for c in colunas[:6])
+                + ("..." if len(colunas) > 6 else "")
             )
             if st.checkbox("Previa da tabulacao", key=f"tab_preview_{idx}"):
                 try:
-                    st.dataframe(tabular_pergunta(df_tab, cfg), use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        tabular_pergunta(df_tab, cfg),
+                        use_container_width=True, hide_index=True,
+                    )
                 except Exception as exc:
                     st.warning(f"Nao foi possivel tabular esta pergunta: {exc}")
 
     ativas = [p for p in perguntas_config if p.get("ativo") and p.get("tipo") != "IGNORAR"]
-    st.divider()
-    st.write(f"{len(ativas)} pergunta(s) ativa(s) para exportacao.")
+
+    st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
+    st.write(f"**{len(ativas)} pergunta(s) ativa(s) para exportacao.**")
 
     gen_excel, gen_ppt = st.columns(2)
     with gen_excel:
-        if st.button("Gerar Excel de tabulacao", disabled=not ativas):
+        if st.button("Gerar Excel de tabulacao", disabled=not ativas,
+                     use_container_width=True, key="tab_gen_xlsx"):
             with st.spinner("Gerando Excel..."):
                 try:
-                    st.session_state["tab_excel_bytes"] = _build_tab_excel(df_tab, ativas, titulo)
+                    st.session_state["tab_excel_bytes"] = _build_tab_excel(
+                        df_tab, ativas, titulo
+                    )
                 except Exception as exc:
                     st.error(f"Erro ao gerar Excel: {exc}")
         if "tab_excel_bytes" in st.session_state:
@@ -546,18 +1045,16 @@ def _render_tabulador(uploaded) -> None:
                 data=st.session_state["tab_excel_bytes"],
                 file_name=f"Tabulacao_{source_name}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
             )
 
     with gen_ppt:
-        if st.button("Gerar PowerPoint", disabled=not ativas):
+        if st.button("Gerar PowerPoint", disabled=not ativas,
+                     use_container_width=True, key="tab_gen_ppt"):
             with st.spinner("Gerando PowerPoint..."):
                 try:
                     st.session_state["tab_ppt_bytes"] = _build_tab_ppt(
-                        df_tab,
-                        ativas,
-                        titulo,
-                        subtitulo,
-                        periodo,
+                        df_tab, ativas, titulo, subtitulo, periodo
                     )
                 except Exception as exc:
                     st.error(f"Erro ao gerar PowerPoint: {exc}")
@@ -567,37 +1064,88 @@ def _render_tabulador(uploaded) -> None:
                 data=st.session_state["tab_ppt_bytes"],
                 file_name=f"Apresentacao_{source_name}.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                use_container_width=True,
             )
 
+    st.markdown('</div>', unsafe_allow_html=True)
 
+
+# =============================================================================
+# MAIN
+# =============================================================================
 def main() -> None:
     _secret_to_env()
 
+    if "active_view" not in st.session_state:
+        st.session_state["active_view"] = "codificador"
+
+    # ---- SIDEBAR ----
     with st.sidebar:
-        st.image("logo_ifec_header.png", use_container_width=True)
-        st.markdown("### IFec RJ")
-        st.caption("Codificacao e tabulacao no Streamlit via GitHub.")
-        uploaded = st.file_uploader("Base de dados", type=["xlsx", "csv"])
-        previous_file = st.file_uploader(
-            "Pesquisa anterior",
-            type=["xlsx", "csv"],
-            help="Opcional. Use para reaproveitar categorias ja validadas.",
+        try:
+            st.image("logo_ifec_header.png", use_container_width=True)
+        except Exception:
+            st.markdown("### IFec RJ")
+
+        st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
+
+        # Botao Codificador
+        is_cod = st.session_state["active_view"] == "codificador"
+        st.markdown(
+            f'<div class="{"nav-active" if is_cod else ""}">',
+            unsafe_allow_html=True,
+        )
+        if st.button("Codificador", key="nav_cod"):
+            st.session_state["active_view"] = "codificador"
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Botao Tabulacao
+        is_tab = st.session_state["active_view"] == "tabulador"
+        st.markdown(
+            f'<div class="{"nav-active" if is_tab else ""}">',
+            unsafe_allow_html=True,
+        )
+        if st.button("Tabulacao automatica (em teste)", key="nav_tab"):
+            st.session_state["active_view"] = "tabulador"
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            "<div style='flex:1; min-height: 6rem;'></div>",
+            unsafe_allow_html=True,
         )
 
+        # Status da API discreto no rodape
         api_ok = bool(os.getenv("OPENAI_API_KEY"))
-        if api_ok:
-            st.success("OPENAI_API_KEY configurada")
-        else:
-            st.warning("OPENAI_API_KEY ausente")
+        try:
+            if not api_ok:
+                key = st.secrets.get("OPENAI_API_KEY", "")
+                if key:
+                    os.environ["OPENAI_API_KEY"] = key
+                    api_ok = True
+        except Exception:
+            pass
 
-    st.title("Codificador de Pesquisas")
-    st.caption("Codificacao com IA, tabulacao e exportacao em Excel/PowerPoint.")
+        st.caption("API: configurada" if api_ok else "API: nao configurada")
 
-    tab_cod, tab_tab = st.tabs(["COD - Codificacao", "TAB - Tabulacao"])
-    with tab_cod:
-        _render_codificador(uploaded, previous_file, api_ok)
-    with tab_tab:
-        _render_tabulador(uploaded)
+    # ---- AREA CENTRAL ----
+    if st.session_state["active_view"] == "codificador":
+        st.markdown('<p class="ifec-page-title">Codificador</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<p class="ifec-page-sub">Codificacao de pesquisas com IA</p>',
+            unsafe_allow_html=True,
+        )
+        _render_codificador(api_ok=bool(os.getenv("OPENAI_API_KEY")))
+    else:
+        st.markdown(
+            '<p class="ifec-page-title">Tabulacao automatica</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<p class="ifec-page-sub">Em teste — gera Excel e PowerPoint da base</p>',
+            unsafe_allow_html=True,
+        )
+        _render_tabulador()
 
 
 if __name__ == "__main__":
