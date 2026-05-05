@@ -1,4 +1,4 @@
-﻿import os
+import os
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -709,6 +709,14 @@ def _step2_perguntas() -> None:
 # ---- Etapa 3 ---------------------------------------------------------------
 def _step3_executar() -> None:
     """Executa a codificacao com spinner — sem log ao vivo."""
+
+    # Guarda: se o resultado ja existe, avanca direto para etapa 4
+    # sem recodificar (evita gastar tokens duplos ao clicar em "Ver resultado")
+    if "result_sheets" in st.session_state:
+        _ss_set("cod_step", 4)
+        st.rerun()
+        return
+
     st.markdown('<div class="ifec-card">', unsafe_allow_html=True)
     st.markdown(
         '<p class="ifec-section-title">Codificacao em andamento</p>',
@@ -767,14 +775,12 @@ def _step3_executar() -> None:
                 st.rerun()
             return
 
+    # Salva resultado e avanca automaticamente para etapa 4
+    # (sem botao intermediario, que causava reexecucao da codificacao)
     _ss_set("result_sheets", result_sheets)
-    st.success("Codificacao finalizada com sucesso!")
+    _ss_set("cod_step", 4)
     st.markdown('</div>', unsafe_allow_html=True)
-
-    if st.button("Ver resultado", type="primary", use_container_width=True,
-                 key="cod_next_3"):
-        _ss_set("cod_step", 4)
-        st.rerun()
+    st.rerun()
 
 
 # ---- Etapa 4 ---------------------------------------------------------------
