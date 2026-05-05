@@ -51,15 +51,15 @@ MODOS_RESPOSTA = {
         "descricao": "Uma resposta â†’ uma categoria",
     },
     "multipla": {
-        "label": "MÃºltipla",
+        "label": "Múltipla",
         "descricao": "Separa por ', ' e codifica cada parte individualmente",
     },
     "semiaberta_simples": {
-        "label": "Semiaberta â€” Simples",
+        "label": "Semiaberta | Simples",
         "descricao": "Categoriza em predefinidas (imputaÃ§Ã£o) ou cria nova coluna",
     },
     "semiaberta_multipla": {
-        "label": "Semiaberta â€” MÃºltipla",
+        "label": "Semiaberta | Múltipla",
         "descricao": "Separa por ', ' + categoriza em predefinidas ou cria nova",
     },
 }
