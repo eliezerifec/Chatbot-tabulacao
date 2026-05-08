@@ -584,7 +584,7 @@ def _step2_perguntas() -> None:
 
     output_col = st.text_input(
         "Coluna de codificacao",
-        value=cfg_prev.get("output_col", "codigo_ia"),
+        value=cfg_prev.get("output_col", "Categorizado"),
         key=f"out_{sheet_name}",
     )
 
@@ -676,7 +676,7 @@ def _step2_perguntas() -> None:
     cfg_atual = {
         "selected": selected,
         "input_col": input_col,
-        "output_col": output_col.strip() or "codigo_ia",
+        "output_col": output_col.strip() or "Categorizado",
         "type_label": type_label,
         "type_key": type_labels[type_label],
         "mode_label": mode_label,
@@ -803,7 +803,7 @@ def _render_resultado_codificacao() -> None:
     )
     df_res = result_sheets[preview_sheet]
     cfg = _ss_get(f"cod_cfg_{preview_sheet}", {}) or {}
-    out_col = cfg.get("output_col", "codigo_ia")
+    out_col = cfg.get("output_col", "Categorizado")
     if out_col not in df_res.columns:
         for c in [cfg.get("imputed_col"), cfg.get("new_col")]:
             if c and c in df_res.columns:
