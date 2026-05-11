@@ -79,6 +79,8 @@ REGRAS OBRIGATÓRIAS:
 4. Ignore palavras que nâo sâo marcas (ex: "nâo lembro", "nenhuma")
 5. Se nâo houver marca identificável, use a categoria: Não soube responder
 6. Cada categoria deve ser o nome da marca normalizado
+7. Entenda de fato qual é a marca informada, e não reescreva o que foi respondido
+8. Verifique as diferentes formas escritas e reescreva de forma correta (ex: Riachuelo ou riaxuelo ou riachuello, ou eiachuelo. Todas são Riachuelo)
 
 Exemplos de classificaÃ§Ã£o:
   "vi a coca cola e a pepsi"  â†’  Coca-Cola, Pepsi
