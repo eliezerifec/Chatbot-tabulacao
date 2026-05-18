@@ -39,7 +39,7 @@ DICIONARIO_CODIFICACAO_PATH = os.getenv(
 
 # â”€â”€ Modelos por agente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Agente 1 (Categorizador): cria as categorias â€” modelo mais inteligente
-MODELO_AGENTE1 = "gpt-5.4"
+MODELO_AGENTE1 = "gpt-4o"
 # Agente 2 (Classificador): vincula respostas Ã s categorias â€” mais rÃ¡pido e barato
 MODELO_AGENTE2 = "gpt-4o"
 
