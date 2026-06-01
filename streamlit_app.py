@@ -234,22 +234,24 @@ def _to_excel(sheets: dict[str, pd.DataFrame]) -> bytes:
 
 
 @st.cache_data(show_spinner=False)
-def _read_tabulation_file(name: str, data: bytes,
-                          two_line_header: bool) -> tuple[pd.DataFrame, dict]:
+def _read_tabulation_file(
+    name: str, data: bytes, two_line_header: bool
+) -> tuple[pd.DataFrame, dict, dict]:
     """
-    Retorna (df, tipos_sm).
-    tipos_sm: mapa {coluna: tipo} extraído da linha 1 do SurveyMonkey
-              (vazio se two_line_header=False ou CSV).
+    Retorna (df, tipos_sm, q0_map).
+    tipos_sm : {coluna → "RU"|"RM"|"ABERTA"} — extraído da linha 1 do SM.
+    q0_map   : {coluna → texto_linha0}        — chave de agrupamento de RM.
+    Ambos vazios quando two_line_header=False ou CSV.
     """
     bio = BytesIO(data)
     if name.lower().endswith(".csv"):
-        return pd.read_csv(bio), {}
+        return pd.read_csv(bio), {}, {}
     if two_line_header:
         from tabulador import set_header
         raw = pd.read_excel(bio, header=None, sheet_name=0)
-        df, tipos_sm = set_header(raw)
-        return df, tipos_sm
-    return pd.read_excel(bio, sheet_name=0), {}
+        df, tipos_sm, q0_map = set_header(raw)   # 3-tupla
+        return df, tipos_sm, q0_map
+    return pd.read_excel(bio, sheet_name=0), {}, {}
 
 
 def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
