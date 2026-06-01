@@ -273,18 +273,27 @@ def detectar_perguntas(
             continue
 
         # Procurar coluna _cod associada
+        # Prioridade 1: coluna com sufixo _cod (base raw + codificação Python)
         col_cod = None
         for c in cols_outros:
             cand = c + "_cod"
             if cand in df.columns:
                 col_cod = cand
                 break
+
+        # Prioridade 2: busca por prefixo entre colunas _cod existentes
         if col_cod is None:
             pref_curto = pref[:25]
             for c in todas:
                 if _e_cod(c) and c[:-4].startswith(pref_curto):
                     col_cod = c
                     break
+
+        # Prioridade 3 (base processada — equivale ao tabela_o2 do R com serie=T):
+        # a própria coluna "Outro" já contém as categorias codificadas (sem sufixo _cod).
+        # Igual ao `select(matches("\\?.*Outro.*(\\?|:)"))` → `separate(sep=", ")`
+        if col_cod is None and cols_outros:
+            col_cod = cols_outros[0]
 
         # Nome da pergunta:
         #   - Com q0_map e grupo RM: texto da linha 0 (pergunta sem sufixo de opção)

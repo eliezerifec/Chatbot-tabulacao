@@ -1137,10 +1137,48 @@ def _render_tabulador() -> None:
                 )
                 ordem_lista = [o.strip() for o in re.split(r"[;\n]", ordem_raw) if o.strip()]
 
+                # ── Coluna de codificações (Outro) ───────────────────────────
+                # Mostra col_cod detectada e permite troca manual
+                auto_cod = pergunta.get("col_cod") or ""
+                colunas_cod = ["(nenhuma)"] + [
+                    c for c in df_tab.columns
+                    if c.endswith("_cod") or (
+                        auto_cod and c == auto_cod
+                    )
+                ]
+                # Remove duplicatas mantendo ordem
+                seen_cod: set = set()
+                colunas_cod_uniq = []
+                for x in colunas_cod:
+                    if x not in seen_cod:
+                        seen_cod.add(x)
+                        colunas_cod_uniq.append(x)
+
+                default_cod_idx = (
+                    colunas_cod_uniq.index(auto_cod)
+                    if auto_cod and auto_cod in colunas_cod_uniq
+                    else 0
+                )
+                col_cod_sel = st.selectbox(
+                    "Coluna de codificações do Outro (col_cod)",
+                    options=colunas_cod_uniq,
+                    index=default_cod_idx,
+                    help="Selecione a coluna que contém as categorias codificadas do campo 'Outro'. "
+                         "Detectada automaticamente — troque se necessário.",
+                    key=f"tab_cod_{orig_idx}",
+                )
+                col_cod_final = col_cod_sel if col_cod_sel != "(nenhuma)" else None
+
+                if not auto_cod and not col_cod_final:
+                    st.caption("⚠️ Coluna _cod não detectada — sub-itens do Outro não serão exibidos.")
+                elif col_cod_final:
+                    st.caption(f"✓ col_cod: `{col_cod_final}`")
+
                 cfg = dict(pergunta)
                 cfg["num"]          = pnum
                 cfg["ativo"]        = ativo
                 cfg["mostrar_outro"]= mostrar_outro
+                cfg["col_cod"]      = col_cod_final      # substitui o valor auto-detectado
                 cfg["tipo"]         = tipo_keys[tipo_labels.index(tipo_label)]
                 cfg["pergunta"]     = texto.strip() or pergunta.get("pergunta", "")
                 cfg["nota"]         = nota.strip()
