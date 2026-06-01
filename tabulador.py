@@ -39,11 +39,17 @@ TIPOS_LABEL = {
 # LEITURA E set_header
 # ─────────────────────────────────────────────────────────────────────────────
 
-def set_header(df_raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
+def set_header(
+    df_raw: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, str], dict[str, str]]:
     """
     Replica set_header() do TabIFec: combina linha 0 + linha 1.
-    Retorna (df, tipos_sm) onde tipos_sm mapeia nome_coluna → tipo SurveyMonkey
-    extraído da linha 1 antes de descartá-la ("RU", "ABERTA" ou "RM").
+
+    Retorna (df, tipos_sm, q0_map) onde:
+      tipos_sm  → {col: "RU"|"RM"|"ABERTA"} — tipo da linha 1 do SurveyMonkey
+      q0_map    → {col: texto_original_linha0} — chave de agrupamento confiável:
+                  todas as opções de uma mesma pergunta RM compartilham o mesmo
+                  texto da linha 0 (forward-fill), independente de terem '(' no nome.
     """
     row0, row1 = df_raw.iloc[0], df_raw.iloc[1]
     filled, last = [], ""
@@ -52,19 +58,21 @@ def set_header(df_raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
             last = str(v).strip()
         filled.append(last)
 
-    cols = []
-    raw_row1 = []  # guarda os valores brutos de row1 antes de limpar
+    cols: list[str] = []
+    raw_row1: list[str] = []
+    q0_filled: list[str] = []   # texto original da linha 0 (antes de combinar)
     for q, r in zip(filled, row1):
         r_str = str(r).strip() if pd.notna(r) else ""
         raw_row1.append(r_str)
+        q0_filled.append(q)
         combined = q + r_str
         combined = re.sub(r"\s*(Response$|Open-Ended Response$|NA$)\s*$", "", combined)
         combined = re.sub(r"\s*\[.*?\]", "", combined)
         cols.append(combined.strip())
 
     df = df_raw.iloc[2:].copy().reset_index(drop=True)
-    seen = {}
-    unique_cols = []
+    seen: dict[str, int] = {}
+    unique_cols: list[str] = []
     for c in cols:
         if c in seen:
             seen[c] += 1
@@ -74,29 +82,34 @@ def set_header(df_raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
             unique_cols.append(c)
     df.columns = unique_cols
 
-    # Monta mapa de tipos a partir da linha 1 do SurveyMonkey
     tipos_sm: dict[str, str] = {}
-    for col_name, r_str in zip(unique_cols, raw_row1):
+    q0_map:   dict[str, str] = {}
+    for col_name, r_str, q0_text in zip(unique_cols, raw_row1, q0_filled):
+        # Tipo a partir da linha 1
         if r_str == "Response":
             tipos_sm[col_name] = "RU"
         elif r_str == "Open-Ended Response" or r_str.endswith(":"):
             tipos_sm[col_name] = "ABERTA"
         else:
             tipos_sm[col_name] = "RM"
+        # Chave de agrupamento = texto da linha 0 (sem sufixo)
+        q0_map[col_name] = q0_text.strip()
 
-    return df, tipos_sm
+    return df, tipos_sm, q0_map
 
 
 def carregar_base(caminho: str) -> pd.DataFrame:
     """Compatibilidade retroativa — retorna só o DataFrame."""
     xl = pd.ExcelFile(caminho)
     df_raw = pd.read_excel(caminho, header=None, sheet_name=xl.sheet_names[0])
-    df, _ = set_header(df_raw)
+    df, _, _ = set_header(df_raw)
     return df
 
 
-def carregar_base_com_tipos(caminho: str) -> tuple[pd.DataFrame, dict[str, str]]:
-    """Retorna (df, tipos_sm) usando a linha 1 do SurveyMonkey como fonte primária de tipo."""
+def carregar_base_com_tipos(
+    caminho: str,
+) -> tuple[pd.DataFrame, dict[str, str], dict[str, str]]:
+    """Retorna (df, tipos_sm, q0_map) usando os metadados do SurveyMonkey."""
     xl = pd.ExcelFile(caminho)
     df_raw = pd.read_excel(caminho, header=None, sheet_name=xl.sheet_names[0])
     return set_header(df_raw)
@@ -184,51 +197,43 @@ def _prefixo_pergunta(col: str) -> str:
     return col
 
 
-def detectar_perguntas(df: pd.DataFrame, tipos_sm: dict[str, str] | None = None) -> list[dict]:
+def detectar_perguntas(
+    df: pd.DataFrame,
+    tipos_sm: dict[str, str] | None = None,
+    q0_map:   dict[str, str] | None = None,
+) -> list[dict]:
     """
-    Agrupa colunas por pergunta-raiz de forma genérica.
+    Agrupa colunas por pergunta-raiz.
 
-    Regra principal: colunas que compartilham o mesmo prefixo
-    (até o '?' ou ' (') são agrupadas como uma única pergunta RM.
+    Quando q0_map (linha 0 do SurveyMonkey) estiver disponível, usa o texto
+    original da pergunta como chave de agrupamento — resolve o problema de RM
+    onde as opções têm '(' no nome, enganando o _prefixo_pergunta.
+    Também detecta automaticamente a coluna "Outro. Qual?" pelo tipos_sm.
 
-    Exemplos:
-      "Qual curso?Cabeleireiro"  ┐
-      "Qual curso?Maquiador"     ├─ mesma raiz "Qual curso?"  → RM
-      "Qual curso?Barbeiro"      ┘
-
-      "Última palestra (19/10)"  ┐
-      "Última palestra (20/10)"  ├─ mesma raiz "Última palestra" → RM
-      "Última palestra (21/10)"  ┘
+    Sem q0_map, usa heurística de prefixo (até '?' ou ' (').
     """
     todas = list(df.columns)
 
-    # Colunas candidatas (sem sistema, sem _cod, sem Original_)
     princ = [c for c in todas
              if c not in _IGNORAR
              and not c.startswith("Original_")
              and not _e_cod(c)]
 
-    # ── Passo 1: mapear cada coluna ao seu prefixo-raiz ───────────────────────
-    # prefixo_map: coluna → prefixo
-    # grupos_prefixo: prefixo → [colunas]
-    prefixo_map: dict[str, str] = {}
+    # ── Passo 1: chave de agrupamento por coluna ──────────────────────────────
+    # Com q0_map → usa texto linha 0 (confiável).
+    # Sem q0_map → usa _prefixo_pergunta (heurística).
+    prefixo_map:   dict[str, str]        = {}
     grupos_prefixo: dict[str, list[str]] = {}
 
     for col in princ:
-        pref = _prefixo_pergunta(col)
+        if q0_map:
+            pref = q0_map.get(col, "").strip() or _prefixo_pergunta(col)
+        else:
+            pref = _prefixo_pergunta(col)
         prefixo_map[col] = pref
         grupos_prefixo.setdefault(pref, []).append(col)
 
-    # ── Passo 2: dentro de cada grupo de prefixo, separar cols_princ / cols_outros
-    # e resolver raiz_map para o startswith original (filhas de filhas)
-    # Mantemos também o startswith original para colunas que são filhas diretas
-    # (ex: "P06. Avalie os itens abaixo?Atendimento" onde há sub-colunas)
-    raiz_map: dict[str, str] = {}
-    for col in princ:
-        pref = prefixo_map[col]
-        raiz_map[col] = pref  # todas as colunas do grupo apontam para o prefixo
-
-    # ── Passo 3: montar perguntas na ordem em que aparecem no DataFrame ────────
+    # ── Passo 2: montar perguntas na ordem em que aparecem no DataFrame ────────
     perguntas, num = [], 1
     vistas_prefixos: set[str] = set()
 
@@ -244,9 +249,15 @@ def detectar_perguntas(df: pd.DataFrame, tipos_sm: dict[str, str] | None = None)
 
         grupo = grupos_prefixo[pref]
 
-        # Separa colunas "Outro" das principais
-        cols_outros = [c for c in grupo if _e_outro(c)]
-        cols_princ  = [c for c in grupo if c not in cols_outros]
+        # ── Separar colunas de opção vs. campo-aberto "Outro" ─────────────────
+        # Com tipos_sm: campo aberto detectado via "ABERTA" (linha 1 = "Open-Ended Response").
+        # Sem tipos_sm: usa regex _PAD_OUTRO_COL no nome da coluna.
+        if tipos_sm:
+            cols_outros = [c for c in grupo if tipos_sm.get(c) == "ABERTA"]
+            cols_princ  = [c for c in grupo if tipos_sm.get(c) != "ABERTA"]
+        else:
+            cols_outros = [c for c in grupo if _e_outro(c)]
+            cols_princ  = [c for c in grupo if c not in cols_outros]
 
         if not cols_princ:
             continue
@@ -265,9 +276,15 @@ def detectar_perguntas(df: pd.DataFrame, tipos_sm: dict[str, str] | None = None)
                     col_cod = c
                     break
 
-        # Usa o prefixo como nome da pergunta (sem o sufixo da opção)
-        # Se só há uma coluna no grupo e o prefixo == coluna, usa a coluna
-        nome_pergunta = pref if len(grupo) > 1 else cols_princ[0]
+        # Nome da pergunta:
+        #   - Com q0_map e grupo RM: texto da linha 0 (pergunta sem sufixo de opção)
+        #   - Sem q0_map ou grupo único: usa prefixo ou col_name inteiro
+        if q0_map and len(grupo) > 1 and cols_princ:
+            nome_pergunta = (q0_map.get(cols_princ[0], pref) or pref).strip()
+        elif len(grupo) > 1:
+            nome_pergunta = pref
+        else:
+            nome_pergunta = cols_princ[0]
 
         tipo = _detectar_tipo(df, nome_pergunta, cols_princ, tipos_sm or {})
         if tipo == "IGNORAR":
@@ -351,6 +368,38 @@ def _detectar_tipo(df: pd.DataFrame, raiz: str, cols: list[str],
     if serie.nunique() / len(serie) > 0.35:
         return "ABERTA"
     return "RU"
+
+
+def _auto_ordenar(labels: list[str]) -> list[str]:
+    """
+    Tenta ordenar labels de faixas de preço / salário pelo valor inicial.
+    Retorna a lista original se não reconhecer o padrão.
+    """
+    _RE_NENHUM = re.compile(r"não tenho|nao tenho|sem condição|nao tenho", re.I)
+    _RE_ACIMA  = re.compile(r"acima|mais de", re.I)
+    _RE_NUM    = re.compile(r"[\d.,]+")
+
+    def _key(lbl: str):
+        if _RE_NENHUM.search(lbl):
+            return -1.0
+        nums = _RE_NUM.findall(lbl.replace(".", "").replace(",", "."))
+        if not nums:
+            return float("inf")
+        val = float(nums[0])
+        if _RE_ACIMA.search(lbl):
+            val += 1e9     # acima → vai para o final
+        return val
+
+    try:
+        sorted_labels = sorted(labels, key=_key)
+        # Só aplica se parecer com faixas monetárias/salariais
+        tem_faixa = any(
+            re.search(r"R\$|salário|salario|mínimo|minimo", l, re.I)
+            for l in labels
+        )
+        return sorted_labels if tem_faixa else labels
+    except Exception:
+        return labels
 
 
 def _nota_padrao(tipo: str) -> str:
@@ -458,6 +507,40 @@ def tabular_ru_rm(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
         else (1.0 if r[" "] == "Total" else "-"),
         axis=1
     )
+
+    # ── Ordenação das opções ──────────────────────────────────────────────────
+    # 1) Ordem manual (especificada pelo usuário no campo "ordem" da pergunta)
+    # 2) Ordem automática de faixas de preço/salário
+    # Sub-itens (is_sub=True) e Total sempre ficam no final, na posição correta.
+    ordem_manual = [str(o).strip() for o in (pergunta.get("ordem") or [])
+                    if str(o).strip()]
+
+    total_df  = freq[freq[" "] == "Total"]
+    sub_df    = freq[freq["is_sub"] == True]
+    main_df   = freq[(freq[" "] != "Total") & (~freq["is_sub"])]
+    main_lbls = list(main_df[" "])
+
+    if ordem_manual:
+        ref = ordem_manual
+    else:
+        ref = _auto_ordenar(main_lbls)
+
+    if ref != main_lbls:
+        ordered_parts = []
+        for lbl in ref:
+            rows = main_df[main_df[" "] == lbl]
+            if not rows.empty:
+                ordered_parts.append(rows)
+                # Sub-itens vêm logo após "Outro"
+                if lbl.lower().startswith("outr") and not sub_df.empty:
+                    ordered_parts.append(sub_df)
+                    sub_df = pd.DataFrame(columns=sub_df.columns)
+        remaining = main_df[~main_df[" "].isin(set(ref))]
+        freq = pd.concat(
+            ordered_parts + [remaining, sub_df, total_df],
+            ignore_index=True,
+        )
+
     return freq[[" ", "Total", "%", "is_sub"]]
 
 

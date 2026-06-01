@@ -503,9 +503,10 @@ class TelaTabulacao(tk.Frame):
 
     def _carregar_t(self):
         try:
-            df, tipos_sm = carregar_base_com_tipos(self._arquivo)
+            df, tipos_sm, q0_map = carregar_base_com_tipos(self._arquivo)
             self._df = df
             self._tipos_sm = tipos_sm
+            self._q0_map   = q0_map
             self.after(0, lambda: self._carregar_ok(df))
         except Exception as e:
             self.after(0, lambda: self._lg(f"ERRO ao carregar: {e}", "err"))
@@ -776,7 +777,11 @@ class TelaTabulacao(tk.Frame):
 
     def _detectar_pergs_t(self):
         try:
-            pergs = detectar_perguntas(self._df, getattr(self, "_tipos_sm", None))
+            pergs = detectar_perguntas(
+                self._df,
+                getattr(self, "_tipos_sm", None),
+                getattr(self, "_q0_map",   None),
+            )
             self.after(0, lambda: self._popular_tv3(pergs))
         except Exception as e:
             self.after(0, lambda: self._lg(f"ERRO perguntas: {e}", "err"))

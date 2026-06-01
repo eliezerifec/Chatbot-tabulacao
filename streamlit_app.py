@@ -1,4 +1,5 @@
 import os
+import re
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -965,10 +966,11 @@ def _render_tabulador() -> None:
             help="Combina as duas primeiras linhas como nomes de colunas.",
         )
         try:
-            df_tab, tipos_sm = _read_tabulation_file(
+            df_tab, tipos_sm, q0_map = _read_tabulation_file(
                 upload.name, upload.getvalue(), two_line_header
             )
             st.session_state["tab_tipos_sm"] = tipos_sm
+            st.session_state["tab_q0_map"]   = q0_map
         except Exception as exc:
             st.error(f"Nao foi possivel preparar a base: {exc}")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -984,9 +986,11 @@ def _render_tabulador() -> None:
         from tabulador import detectar_perguntas
         try:
             tipos_sm = st.session_state.get("tab_tipos_sm", {})
-            st.session_state["tab_questions"] = detectar_perguntas(df_tab, tipos_sm)
+            q0_map   = st.session_state.get("tab_q0_map",   {})
+            st.session_state["tab_questions"] = detectar_perguntas(
+                df_tab, tipos_sm, q0_map
+            )
             st.session_state["tab_source_name"] = source_name
-            # Limpa cache de Excel para forçar nova geração
             st.session_state.pop("tab_excel_bytes", None)
         except Exception as exc:
             st.error(f"Erro ao detectar perguntas: {exc}")
@@ -1061,11 +1065,21 @@ def _render_tabulador() -> None:
                 key=f"tab_note_{idx}",
             )
 
+            # ── Ordenação das opções ──────────────────────────────────────────
+            ordem_raw = st.text_input(
+                "Ordem das opções (separar por ; ou quebra de linha — deixe em branco para automático)",
+                value="; ".join(pergunta.get("ordem") or []),
+                help="Ex: Sim; Não; Talvez    |    Deixe vazio para ordenar por frequência ou faixa de preço.",
+                key=f"tab_ordem_{idx}",
+            )
+            ordem_lista = [o.strip() for o in re.split(r"[;\n]", ordem_raw) if o.strip()]
+
             cfg = dict(pergunta)
-            cfg["ativo"] = ativo
-            cfg["tipo"] = tipo_keys[tipo_labels.index(tipo_label)]
+            cfg["ativo"]    = ativo
+            cfg["tipo"]     = tipo_keys[tipo_labels.index(tipo_label)]
             cfg["pergunta"] = texto.strip() or pergunta.get("pergunta", "")
-            cfg["nota"] = nota.strip()
+            cfg["nota"]     = nota.strip()
+            cfg["ordem"]    = ordem_lista
             perguntas_config.append(cfg)
 
             colunas = cfg.get("colunas", [])
