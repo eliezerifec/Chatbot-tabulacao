@@ -1100,19 +1100,25 @@ def _render_tabulador() -> None:
 
         with col_exp:
             with st.expander(label, expanded=(pos < 2)):
-                top_a, top_b, top_c = st.columns([1, 2, 4])
+                top_a, top_b, top_c, top_d = st.columns([1, 1, 2, 3])
                 ativo = top_a.checkbox(
                     "Ativa", value=pergunta.get("ativo", True),
                     key=f"tab_active_{orig_idx}",
                 )
+                mostrar_outro = top_b.checkbox(
+                    "Mostrar Outro",
+                    value=pergunta.get("mostrar_outro", True),
+                    help="Quando marcado, exibe as codificações do campo 'Outro' acima da linha Outro.",
+                    key=f"tab_outro_{orig_idx}",
+                )
                 tipo_atual = pergunta.get("tipo", "ABERTA")
                 tipo_index = tipo_keys.index(tipo_atual) if tipo_atual in tipo_keys \
                              else tipo_keys.index("ABERTA")
-                tipo_label = top_b.selectbox(
+                tipo_label = top_c.selectbox(
                     "Tipo", tipo_labels, index=tipo_index,
                     key=f"tab_type_{orig_idx}",
                 )
-                texto = top_c.text_input(
+                texto = top_d.text_input(
                     "Pergunta",
                     value=str(pergunta.get("pergunta", "")),
                     key=f"tab_question_{orig_idx}",
@@ -1132,12 +1138,13 @@ def _render_tabulador() -> None:
                 ordem_lista = [o.strip() for o in re.split(r"[;\n]", ordem_raw) if o.strip()]
 
                 cfg = dict(pergunta)
-                cfg["num"]      = pnum          # número atualizado pela posição
-                cfg["ativo"]    = ativo
-                cfg["tipo"]     = tipo_keys[tipo_labels.index(tipo_label)]
-                cfg["pergunta"] = texto.strip() or pergunta.get("pergunta", "")
-                cfg["nota"]     = nota.strip()
-                cfg["ordem"]    = ordem_lista
+                cfg["num"]          = pnum
+                cfg["ativo"]        = ativo
+                cfg["mostrar_outro"]= mostrar_outro
+                cfg["tipo"]         = tipo_keys[tipo_labels.index(tipo_label)]
+                cfg["pergunta"]     = texto.strip() or pergunta.get("pergunta", "")
+                cfg["nota"]         = nota.strip()
+                cfg["ordem"]        = ordem_lista
                 perguntas_config.append(cfg)
 
                 colunas = cfg.get("colunas", [])

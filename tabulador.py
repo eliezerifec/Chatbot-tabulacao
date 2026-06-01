@@ -455,6 +455,8 @@ def tabular_ru_rm(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
         ~df_long[" "].isin(["", "-", "nan"]) &
         ~df_long[" "].str.startswith("NÃO SE APLICA") &
         ~df_long[" "].str.match(_PAD_OUTRO_VAL) &
+        # Exclui o valor "Outro"/"Outra" da opção checkbox — contado separadamente
+        ~df_long[" "].str.strip().str.lower().isin(["outro", "outra"]) &
         ~df_long[" "].str.lower().str.contains(r"não soube avaliar|nao soube avaliar", regex=True)
     ]
 
@@ -495,9 +497,29 @@ def tabular_ru_rm(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
             sf["is_sub"] = True
             sub_df = sf
 
-    if n_outro > 0 or len(sub_df) > 0:
-        outro = pd.DataFrame({" ": ["Outro"], "Total": [n_outro], "is_sub": [False]})
-        freq  = pd.concat([freq, outro, sub_df], ignore_index=True)
+    # ── Ordenação das opções PRINCIPAIS (antes de inserir Outro) ─────────────
+    # 1) Ordem manual: excluímos "Outro" pois sua posição é sempre ao final
+    # 2) Ordem automática de faixas de preço/salário
+    ordem_manual = [str(o).strip() for o in (pergunta.get("ordem") or [])
+                    if str(o).strip() and str(o).strip().lower() != "outro"]
+    main_lbls = list(freq[" "])
+    ref = ordem_manual if ordem_manual else _auto_ordenar(main_lbls)
+    if ref != main_lbls:
+        ordered = [freq[freq[" "] == lbl] for lbl in ref if lbl in main_lbls]
+        remaining = freq[~freq[" "].isin(set(ref))]
+        freq = pd.concat(ordered + [remaining], ignore_index=True)
+
+    # ── Montagem final: "Outro" + sub-itens abaixo (ou ocultos) ─────────────
+    mostrar_outro = pergunta.get("mostrar_outro", True)
+
+    if n_outro > 0 or not sub_df.empty:
+        outro_row = pd.DataFrame({" ": ["Outro"], "Total": [n_outro], "is_sub": [False]})
+        if mostrar_outro and not sub_df.empty:
+            # Sub-itens codificados aparecem ABAIXO do "Outro"
+            freq = pd.concat([freq, outro_row, sub_df], ignore_index=True)
+        else:
+            # Sem detalhamento: apenas a linha "Outro"
+            freq = pd.concat([freq, outro_row], ignore_index=True)
 
     # ── Base (respondentes únicos) ────────────────────────────────────────────
     todas_cols = cols_p + cols_o
@@ -517,39 +539,6 @@ def tabular_ru_rm(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
         else (1.0 if r[" "] == "Total" else "-"),
         axis=1
     )
-
-    # ── Ordenação das opções ──────────────────────────────────────────────────
-    # 1) Ordem manual (especificada pelo usuário no campo "ordem" da pergunta)
-    # 2) Ordem automática de faixas de preço/salário
-    # Sub-itens (is_sub=True) e Total sempre ficam no final, na posição correta.
-    ordem_manual = [str(o).strip() for o in (pergunta.get("ordem") or [])
-                    if str(o).strip()]
-
-    total_df  = freq[freq[" "] == "Total"]
-    sub_df    = freq[freq["is_sub"] == True]
-    main_df   = freq[(freq[" "] != "Total") & (~freq["is_sub"])]
-    main_lbls = list(main_df[" "])
-
-    if ordem_manual:
-        ref = ordem_manual
-    else:
-        ref = _auto_ordenar(main_lbls)
-
-    if ref != main_lbls:
-        ordered_parts = []
-        for lbl in ref:
-            rows = main_df[main_df[" "] == lbl]
-            if not rows.empty:
-                ordered_parts.append(rows)
-                # Sub-itens vêm logo após "Outro"
-                if lbl.lower().startswith("outr") and not sub_df.empty:
-                    ordered_parts.append(sub_df)
-                    sub_df = pd.DataFrame(columns=sub_df.columns)
-        remaining = main_df[~main_df[" "].isin(set(ref))]
-        freq = pd.concat(
-            ordered_parts + [remaining, sub_df, total_df],
-            ignore_index=True,
-        )
 
     return freq[[" ", "Total", "%", "is_sub"]]
 
