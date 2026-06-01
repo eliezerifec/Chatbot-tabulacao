@@ -660,6 +660,18 @@ def tabular_grid_item(df: pd.DataFrame, col: str) -> pd.DataFrame:
     freq["%"] = freq.apply(
         lambda r: r["Total"] / respondentes if r[" "] != "Total" else 1.0, axis=1
     )
+
+    # Garante valores inteiros para escalas numéricas ("1.0" → "1")
+    def _to_int_str(v):
+        try:
+            f = float(v)
+            return str(int(f)) if f == int(f) else v
+        except Exception:
+            return v
+    freq[" "] = freq[" "].apply(
+        lambda v: _to_int_str(v) if v not in ("Total",) else v
+    )
+
     return freq[[" ", "Total", "%", "is_sub", "is_sep"]]
 
 
@@ -884,10 +896,13 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
                 if is_tot:
                     c_cnt.border = BD_MEDIUM
 
-                if isinstance(raw_pct, float) and not np.isnan(raw_pct):
+                # RM: linha Total sempre com "-" em %
+                if is_rm_total:
+                    val_p, fmt_p = "-", "General"
+                elif isinstance(raw_pct, float) and not np.isnan(raw_pct):
                     val_p, fmt_p = raw_pct, "0.0%"
                 else:
-                    val_p = "-" if is_rm_total else (str(raw_pct) if raw_pct is not None else "-")
+                    val_p = str(raw_pct) if raw_pct is not None else "-"
                     fmt_p = "General"
                 c_pct = ws.cell(row=row_n, column=col_pct(i), value=val_p)
                 c_pct.font = F(italic=is_sub, size=9 if is_sub else 12,

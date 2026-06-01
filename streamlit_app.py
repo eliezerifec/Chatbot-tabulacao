@@ -936,6 +936,14 @@ def _render_tabulador() -> None:
         unsafe_allow_html=True,
     )
 
+    # Limpa cache quando o usuário quiser (útil após atualizações de código)
+    if st.button("🔄 Limpar cache e reiniciar leitura", key="tab_clear_cache"):
+        st.cache_data.clear()
+        for k in list(st.session_state.keys()):
+            if k.startswith("tab_"):
+                st.session_state.pop(k, None)
+        st.rerun()
+
     fonte_options = ["Arquivo enviado"]
     if "result_sheets" in st.session_state:
         fonte_options.append("Resultado codificado")
