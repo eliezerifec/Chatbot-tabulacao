@@ -233,15 +233,22 @@ def _to_excel(sheets: dict[str, pd.DataFrame]) -> bytes:
 
 
 @st.cache_data(show_spinner=False)
-def _read_tabulation_file(name: str, data: bytes, two_line_header: bool) -> pd.DataFrame:
+def _read_tabulation_file(name: str, data: bytes,
+                          two_line_header: bool) -> tuple[pd.DataFrame, dict]:
+    """
+    Retorna (df, tipos_sm).
+    tipos_sm: mapa {coluna: tipo} extraído da linha 1 do SurveyMonkey
+              (vazio se two_line_header=False ou CSV).
+    """
     bio = BytesIO(data)
     if name.lower().endswith(".csv"):
-        return pd.read_csv(bio)
+        return pd.read_csv(bio), {}
     if two_line_header:
         from tabulador import set_header
         raw = pd.read_excel(bio, header=None, sheet_name=0)
-        return set_header(raw)
-    return pd.read_excel(bio, sheet_name=0)
+        df, tipos_sm = set_header(raw)
+        return df, tipos_sm
+    return pd.read_excel(bio, sheet_name=0), {}
 
 
 def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -269,7 +276,9 @@ def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
     return clean
 
 
-def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str) -> bytes:
+def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
+                     aberturas_cols: list[str] | None = None,
+                     filtro_col: str | None = None) -> bytes:
     from tabulador import exportar_excel
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         path = tmp.name
@@ -280,6 +289,8 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str) -> by
             saida=path,
             titulo=titulo or "Pesquisa IFec RJ",
             total_respostas=len(df),
+            aberturas_cols=aberturas_cols or None,
+            filtro_col=filtro_col or None,
         )
         return Path(path).read_bytes()
     finally:
@@ -287,6 +298,22 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str) -> by
             Path(path).unlink(missing_ok=True)
         except Exception:
             pass
+
+
+def _candidatas_abertura(df: pd.DataFrame) -> list[str]:
+    """Colunas categóricas com 2-25 valores únicos — candidatas a abertura."""
+    try:
+        from tabulador import _IGNORAR as _TAB_IGN
+    except ImportError:
+        _TAB_IGN = set()
+    result = []
+    for col in df.columns:
+        if col in _TAB_IGN or col.startswith("Original_") or col.endswith("_cod"):
+            continue
+        n_unique = df[col].dropna().astype(str).nunique()
+        if 2 <= n_unique <= 25:
+            result.append(col)
+    return result
 
 
 def _build_tab_ppt(df: pd.DataFrame, perguntas: list[dict], titulo: str,
@@ -938,9 +965,10 @@ def _render_tabulador() -> None:
             help="Combina as duas primeiras linhas como nomes de colunas.",
         )
         try:
-            df_tab = _read_tabulation_file(
+            df_tab, tipos_sm = _read_tabulation_file(
                 upload.name, upload.getvalue(), two_line_header
             )
+            st.session_state["tab_tipos_sm"] = tipos_sm
         except Exception as exc:
             st.error(f"Nao foi possivel preparar a base: {exc}")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -955,8 +983,11 @@ def _render_tabulador() -> None:
     if st.button("Detectar perguntas", type="primary", key="tab_detect"):
         from tabulador import detectar_perguntas
         try:
-            st.session_state["tab_questions"] = detectar_perguntas(df_tab)
+            tipos_sm = st.session_state.get("tab_tipos_sm", {})
+            st.session_state["tab_questions"] = detectar_perguntas(df_tab, tipos_sm)
             st.session_state["tab_source_name"] = source_name
+            # Limpa cache de Excel para forçar nova geração
+            st.session_state.pop("tab_excel_bytes", None)
         except Exception as exc:
             st.error(f"Erro ao detectar perguntas: {exc}")
 
@@ -968,6 +999,28 @@ def _render_tabulador() -> None:
         return
 
     st.success(f"{len(perguntas_detectadas)} pergunta(s) detectada(s).")
+
+    # ── Aberturas e Filtro ────────────────────────────────────────────────────
+    candidatas_ab = _candidatas_abertura(df_tab)
+    with st.expander("⚙️ Cruzamentos e filtros por aba", expanded=bool(candidatas_ab)):
+        col_ab, col_fil = st.columns(2)
+        with col_ab:
+            ab_sel = st.multiselect(
+                "Cruzar por (aberturas):",
+                options=candidatas_ab,
+                default=[],
+                help="Gera colunas de Total + % para cada valor das colunas selecionadas.",
+                key="tab_aberturas",
+            )
+        with col_fil:
+            filtro_options = ["(nenhum)"] + candidatas_ab
+            filtro_sel = st.selectbox(
+                "Gerar aba por (filtro):",
+                options=filtro_options,
+                index=0,
+                help="Cria uma aba separada no Excel para cada valor único da coluna selecionada.",
+                key="tab_filtro",
+            )
 
     titulo = st.text_input("Titulo do relatorio", value="Pesquisa IFec RJ", key="tab_title")
     sub_a, sub_b = st.columns(2)
@@ -1040,8 +1093,11 @@ def _render_tabulador() -> None:
                      use_container_width=True, key="tab_gen_xlsx"):
             with st.spinner("Gerando Excel..."):
                 try:
+                    _filtro = filtro_sel if filtro_sel != "(nenhum)" else None
                     st.session_state["tab_excel_bytes"] = _build_tab_excel(
-                        df_tab, ativas, titulo
+                        df_tab, ativas, titulo,
+                        aberturas_cols=ab_sel or None,
+                        filtro_col=_filtro,
                     )
                 except Exception as exc:
                     st.error(f"Erro ao gerar Excel: {exc}")
