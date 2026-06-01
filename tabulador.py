@@ -27,6 +27,7 @@ warnings.filterwarnings("ignore")
 TIPOS_LABEL = {
     "RU":     "Resposta Única",
     "RM":     "Resposta Múltipla",
+    "GRID":   "Matriz / Ranking",
     "ABERTA": "Aberta / Codificada",
     "MEDIA":  "Numérica (Média)",
     "NPS":    "NPS (0-10)",
@@ -38,8 +39,12 @@ TIPOS_LABEL = {
 # LEITURA E set_header
 # ─────────────────────────────────────────────────────────────────────────────
 
-def set_header(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """Replica set_header() do TabIFec: combina linha 0 + linha 1."""
+def set_header(df_raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
+    """
+    Replica set_header() do TabIFec: combina linha 0 + linha 1.
+    Retorna (df, tipos_sm) onde tipos_sm mapeia nome_coluna → tipo SurveyMonkey
+    extraído da linha 1 antes de descartá-la ("RU", "ABERTA" ou "RM").
+    """
     row0, row1 = df_raw.iloc[0], df_raw.iloc[1]
     filled, last = [], ""
     for v in row0:
@@ -48,8 +53,10 @@ def set_header(df_raw: pd.DataFrame) -> pd.DataFrame:
         filled.append(last)
 
     cols = []
+    raw_row1 = []  # guarda os valores brutos de row1 antes de limpar
     for q, r in zip(filled, row1):
         r_str = str(r).strip() if pd.notna(r) else ""
+        raw_row1.append(r_str)
         combined = q + r_str
         combined = re.sub(r"\s*(Response$|Open-Ended Response$|NA$)\s*$", "", combined)
         combined = re.sub(r"\s*\[.*?\]", "", combined)
@@ -66,10 +73,30 @@ def set_header(df_raw: pd.DataFrame) -> pd.DataFrame:
             seen[c] = 0
             unique_cols.append(c)
     df.columns = unique_cols
-    return df
+
+    # Monta mapa de tipos a partir da linha 1 do SurveyMonkey
+    tipos_sm: dict[str, str] = {}
+    for col_name, r_str in zip(unique_cols, raw_row1):
+        if r_str == "Response":
+            tipos_sm[col_name] = "RU"
+        elif r_str == "Open-Ended Response" or r_str.endswith(":"):
+            tipos_sm[col_name] = "ABERTA"
+        else:
+            tipos_sm[col_name] = "RM"
+
+    return df, tipos_sm
 
 
 def carregar_base(caminho: str) -> pd.DataFrame:
+    """Compatibilidade retroativa — retorna só o DataFrame."""
+    xl = pd.ExcelFile(caminho)
+    df_raw = pd.read_excel(caminho, header=None, sheet_name=xl.sheet_names[0])
+    df, _ = set_header(df_raw)
+    return df
+
+
+def carregar_base_com_tipos(caminho: str) -> tuple[pd.DataFrame, dict[str, str]]:
+    """Retorna (df, tipos_sm) usando a linha 1 do SurveyMonkey como fonte primária de tipo."""
     xl = pd.ExcelFile(caminho)
     df_raw = pd.read_excel(caminho, header=None, sheet_name=xl.sheet_names[0])
     return set_header(df_raw)
@@ -101,6 +128,33 @@ def _e_cod(col: str) -> bool:
     return col.endswith("_cod")
 
 
+def _detectar_grid(df: pd.DataFrame, cols: list[str]) -> bool:
+    """
+    Detecta perguntas do tipo GRID / Ranking:
+    - Múltiplas colunas
+    - Cada coluna tem poucos valores únicos (≤ 10)
+    - Os valores se repetem em ≥ 50 % das colunas (mesma escala)
+    Exemplos: Sim/Talvez/Não por item, classificação 1-5 por critério.
+    """
+    if len(cols) <= 1:
+        return False
+    per_col: list[set] = []
+    all_vals: set = set()
+    for c in cols:
+        vals = set(_col(df, c).dropna().astype(str).str.strip())
+        vals -= {"", "nan", "-"}
+        if not vals:
+            continue
+        per_col.append(vals)
+        all_vals |= vals
+    if not per_col or len(all_vals) == 0 or len(all_vals) > 10:
+        return False
+    intersection = per_col[0].copy()
+    for v in per_col[1:]:
+        intersection &= v
+    return len(intersection) >= 2 and (len(intersection) / len(all_vals)) >= 0.5
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DETECÇÃO DE PERGUNTAS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,7 +184,7 @@ def _prefixo_pergunta(col: str) -> str:
     return col
 
 
-def detectar_perguntas(df: pd.DataFrame) -> list[dict]:
+def detectar_perguntas(df: pd.DataFrame, tipos_sm: dict[str, str] | None = None) -> list[dict]:
     """
     Agrupa colunas por pergunta-raiz de forma genérica.
 
@@ -215,12 +269,13 @@ def detectar_perguntas(df: pd.DataFrame) -> list[dict]:
         # Se só há uma coluna no grupo e o prefixo == coluna, usa a coluna
         nome_pergunta = pref if len(grupo) > 1 else cols_princ[0]
 
-        tipo = _detectar_tipo(df, nome_pergunta, cols_princ)
+        tipo = _detectar_tipo(df, nome_pergunta, cols_princ, tipos_sm or {})
         if tipo == "IGNORAR":
             continue
 
         # Forçar RM quando o grupo tem mais de uma coluna principal
-        if tipo not in ("NPS", "ABERTA") and len(cols_princ) > 1:
+        # (não aplica para GRID, NPS e ABERTA que já têm lógica própria)
+        if tipo not in ("NPS", "ABERTA", "GRID") and len(cols_princ) > 1:
             tipo = "RM"
 
         # Nota de "Não soube avaliar"
@@ -254,10 +309,13 @@ def detectar_perguntas(df: pd.DataFrame) -> list[dict]:
     return perguntas
 
 
-def _detectar_tipo(df: pd.DataFrame, raiz: str, cols: list[str]) -> str:
+def _detectar_tipo(df: pd.DataFrame, raiz: str, cols: list[str],
+                   tipos_sm: dict[str, str] | None = None) -> str:
     raiz_l = raiz.lower()
     if raiz in _IGNORAR or raiz.startswith("Original_") or not raiz.strip():
         return "IGNORAR"
+
+    # NPS e MEDIA têm prioridade — detecção por padrão textual, independente do SM
     if _PAD_NPS.search(raiz_l):
         return "NPS"
 
@@ -268,7 +326,19 @@ def _detectar_tipo(df: pd.DataFrame, raiz: str, cols: list[str]) -> str:
         if len(sample) > 0 and sample.mean() > 0:
             return "MEDIA"
 
+    # Usa o tipo da linha 1 do SurveyMonkey como fonte primária
+    if tipos_sm and cols_s:
+        tipo_sm = tipos_sm.get(cols_s[0])
+        if tipo_sm in ("RU", "ABERTA", "RM"):
+            # RM com valores de escala → GRID
+            if tipo_sm == "RM" and _detectar_grid(df, cols_s):
+                return "GRID"
+            return tipo_sm
+
+    # Fallback heurístico (para bases sem metadado SM ou com tipos ausentes)
     if len(cols_s) > 1:
+        if _detectar_grid(df, cols_s):
+            return "GRID"
         if sum(1 for c in cols_s if _col(df, c).notna().any()) > 1:
             return "RM"
 
@@ -480,12 +550,69 @@ def tabular_nps(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=[" ", "Total", "%", "is_sub", "is_sep"])
 
 
+def tabular_grid_item(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """
+    Tabula um item de pergunta GRID (uma coluna com escala, ex: 1-5 ou Sim/Não).
+    Ordena numericamente quando possível.
+    """
+    serie = (_col(df, col).dropna().astype(str)
+             .pipe(lambda s: s[~s.str.strip().isin(["", "nan", "-"])]))
+    freq = serie.value_counts().reset_index()
+    freq.columns = [" ", "Total"]
+    # Ordena numericamente ou alfabeticamente
+    try:
+        freq[" "] = pd.to_numeric(freq[" "])
+        freq = freq.sort_values(" ").reset_index(drop=True)
+        freq[" "] = freq[" "].astype(str)
+    except Exception:
+        freq = freq.sort_values(" ").reset_index(drop=True)
+    freq["is_sub"] = False
+    freq["is_sep"] = False
+    respondentes = len(serie) or 1
+    total = pd.DataFrame({
+        " ": ["Total"], "Total": [respondentes],
+        "is_sub": [False], "is_sep": [False]
+    })
+    freq = pd.concat([freq, total], ignore_index=True)
+    freq["%"] = freq.apply(
+        lambda r: r["Total"] / respondentes if r[" "] != "Total" else 1.0, axis=1
+    )
+    return freq[[" ", "Total", "%", "is_sub", "is_sep"]]
+
+
+def preparar_aberturas(
+    df: pd.DataFrame,
+    cols_abertura: list[str]
+) -> list[tuple[str, pd.DataFrame]]:
+    """
+    Prepara a lista de (label, df_subset) para cada abertura (cruzamento).
+    Sempre começa com ("Total", df) para o total geral.
+
+    cols_abertura: nomes das colunas do df para cruzar.
+                   Para cada coluna, um par por valor único é adicionado.
+    """
+    result: list[tuple[str, pd.DataFrame]] = [("Total", df)]
+    for col in (cols_abertura or []):
+        if col not in df.columns:
+            continue
+        vals = sorted(df[col].dropna().astype(str).unique())
+        for val in vals:
+            df_sub = df[df[col].astype(str) == val].reset_index(drop=True)
+            if len(df_sub) > 0:
+                result.append((val, df_sub))
+    return result
+
+
 def tabular_pergunta(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
     t = pergunta["tipo"]
     if t in ("RU", "RM"): return tabular_ru_rm(df, pergunta)
     if t == "ABERTA":     return tabular_aberta(df, pergunta)
     if t == "MEDIA":      return tabular_media(df, pergunta)
     if t == "NPS":        return tabular_nps(df, pergunta)
+    if t == "GRID":
+        # Fallback: tabula primeira coluna como RU simples
+        if pergunta.get("colunas"):
+            return tabular_grid_item(df, pergunta["colunas"][0])
     return pd.DataFrame(columns=[" ", "Total", "%", "is_sub"])
 
 
@@ -493,10 +620,33 @@ def tabular_pergunta(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
 # EXPORTAÇÃO EXCEL
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _grid_item_label(pergunta: dict, col: str) -> str:
+    """Extrai o nome do item GRID (sufixo após o prefixo da pergunta)."""
+    pref = pergunta.get("pergunta", "")
+    if col.startswith(pref):
+        label = col[len(pref):].lstrip("?").strip()
+    else:
+        label = col
+    return label or col
+
+
+def _ab_col(i: int) -> tuple[int, int]:
+    """
+    Retorna (col_count, col_pct) para a i-ésima abertura.
+    i=0 → Total (colunas B=2, C=3)
+    i≥1 → separador em D=4, abertura em E=5,F=6 / G=7,H=8 / ...
+    """
+    if i == 0:
+        return 2, 3
+    return 4 + (i - 1) * 2 + 1, 4 + (i - 1) * 2 + 2
+
+
 def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
                    saida: str, titulo: str = "Pesquisa",
                    total_respostas: int = None,
-                   metodologia: str = None, rodape: str = None):
+                   metodologia: str = None, rodape: str = None,
+                   aberturas_cols: list[str] | None = None,
+                   filtro_col: str | None = None):
 
     from openpyxl.styles import Border, Side
 
@@ -516,21 +666,20 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
         'apresentar mais de uma resposta no campo aberto "Outro".'
     )
 
-    # ── Paleta do padrão Professional Fair ───────────────────────────────────
-    COR_TITULO   = "984806"   # laranja escuro — título principal
-    COR_DATA     = "E36C0A"   # laranja médio — data/subtítulo
-    COR_PERGUNTA = "984806"   # laranja escuro — número/título da pergunta
-    COR_TEXTO    = "262626"   # cinza muito escuro — dados
-    COR_NOTA     = "404040"   # cinza médio — nota de rodapé
-    COR_HDR_BG   = "E36C0A"   # fundo cabeçalho de tabela
-    COR_HDR_FG   = "FFFFFF"   # texto cabeçalho de tabela
+    # ── Paleta ───────────────────────────────────────────────────────────────
+    COR_TITULO   = "984806"
+    COR_DATA     = "E36C0A"
+    COR_PERGUNTA = "984806"
+    COR_TEXTO    = "262626"
+    COR_NOTA     = "404040"
+    COR_HDR_BG   = "E36C0A"
+    COR_HDR_FG   = "FFFFFF"
 
     FILL_HDR = PatternFill("solid", fgColor=COR_HDR_BG)
     AL_WRAP  = Alignment(horizontal="left",   vertical="center", wrap_text=True)
     AL_CTR   = Alignment(horizontal="center", vertical="center", wrap_text=True)
     AL_LEFT  = Alignment(horizontal="left",   vertical="center", wrap_text=True)
     AL_IND   = Alignment(horizontal="left",   vertical="center", wrap_text=True, indent=2)
-
     BD_DOUBLE = Border(bottom=Side(border_style="double"))
     BD_MEDIUM = Border(top=Side(border_style="medium"),
                        bottom=Side(border_style="medium"))
@@ -547,174 +696,289 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
         except Exception:
             return v
 
+    # ── Aberturas ─────────────────────────────────────────────────────────────
+    ab_list = preparar_aberturas(df, aberturas_cols or [])
+    n_ab    = len(ab_list)  # inclui Total
+
+    # ── Workbook ──────────────────────────────────────────────────────────────
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Tabulação"
+    wb.remove(wb.active)  # remove aba padrão vazia
 
-    row = 1
+    def _escrever_sheet(ws: object, df_ws: pd.DataFrame,
+                        ab_ws: list, total_ws: int) -> None:
+        """Preenche uma aba do workbook com cabeçalho + perguntas."""
+        nonlocal FILL_HDR, AL_WRAP, AL_CTR, AL_LEFT, AL_IND
+        nonlocal BD_DOUBLE, BD_MEDIUM
 
-    # L1 — Título principal
-    c = ws.cell(row=row, column=1, value=titulo)
-    c.font = F(bold=True, size=18, color=COR_TITULO, name="Palatino")
-    ws.row_dimensions[row].height = 22.5
-    row += 1
+        n_ab_ws = len(ab_ws)
+        has_sep = n_ab_ws > 1  # separador entre Total e aberturas
 
-    # L2 — Subtítulo/data
-    subtitulo_txt = f"Total de respostas obtidas: {total_respostas}"
-    c = ws.cell(row=row, column=1, value=subtitulo_txt)
-    c.font = F(bold=True, size=12, color=COR_DATA, name="Cambria")
-    ws.row_dimensions[row].height = 15.75
-    row += 1  # L3 vazia
-    ws.row_dimensions[row].height = 15.75
-    row += 1
+        # ── Helpers de posição de coluna ──────────────────────────────────────
+        def col_count(i: int) -> int:
+            """Coluna para contagem da i-ésima abertura (0=Total)."""
+            return 2 if i == 0 else (5 + (i - 1) * 2)
 
-    # L4 — Metodologia
-    c = ws.cell(row=row, column=1, value=_MET)
-    c.font = F(bold=True, size=12, color=COR_TITULO, name="Palatino")
-    c.alignment = AL_WRAP
-    ws.row_dimensions[row].height = 15.75
-    row += 1
+        def col_pct(i: int) -> int:
+            """Coluna para % da i-ésima abertura (0=Total)."""
+            return 3 if i == 0 else (6 + (i - 1) * 2)
 
-    # L5 — Rodapé metodológico
-    c = ws.cell(row=row, column=1, value=_ROD)
-    c.font = F(bold=False, size=10, color=COR_NOTA, italic=True, name="Calibri")
-    c.alignment = AL_WRAP
-    ws.row_dimensions[row].height = 15.75
-    row += 1  # L6 vazia
-    ws.row_dimensions[row].height = 15.75
-    row += 1
-
-    # ── Perguntas ─────────────────────────────────────────────────────────────
-    ativas = [p for p in perguntas if p.get("ativo", True) and p["tipo"] != "IGNORAR"]
-    for p in ativas:
-        tabela = tabular_pergunta(df, p)
-        if tabela.empty:
-            continue
-
-        tipo = p["tipo"]
-
-        # Título da pergunta (itálico, laranja, Calibri 12)
-        c = ws.cell(row=row, column=1, value=f"{p['num']}. {p['pergunta']}")
-        c.font = F(bold=False, size=12, color=COR_PERGUNTA, italic=True, name="Calibri")
-        c.alignment = AL_WRAP
-        ws.row_dimensions[row].height = 15.75
-        row += 1
-
-        # Cabeçalho de colunas com borda double embaixo
-        hdrs = ["", "Total", "%"]
-        extra_hdrs = []  # para NPS com colunas extras
-
-        # Verifica se a tabela tem colunas de Detratores/Neutros/Promotores (vindo de NPS especial)
-        # No padrão, P03 tem colunas extras E/F/G/H/I/J
-        # Por ora mantemos as 3 colunas padrão
-        for ci, hdr in enumerate(hdrs, 1):
-            c = ws.cell(row=row, column=ci, value=hdr if hdr else None)
+        # ── Linha de cabeçalho de coluna ──────────────────────────────────────
+        def _write_col_headers(row_n: int, label_col_a: str = "") -> None:
+            c = ws.cell(row=row_n, column=1, value=label_col_a or None)
             c.font = F(bold=True, size=12, color=COR_HDR_FG, name="Cambria")
             c.fill = FILL_HDR
-            c.alignment = AL_CTR
+            c.alignment = AL_CTR if not label_col_a else AL_LEFT
             c.border = BD_DOUBLE
-            if hdr == "%":
-                c.number_format = "0.0%"
-        ws.row_dimensions[row].height = 16.5
-        row += 1
 
-        # Linhas de dados
-        for _, dr in tabela.iterrows():
-            # Separador entre blocos (ex: NPS com 4 sub-tabelas)
-            if dr.get("is_sep", False):
-                # Linha em branco + novo cabeçalho de colunas
-                ws.row_dimensions[row].height = 8
-                row += 1
-                for ci, hdr in enumerate(["", "Total", "%"], 1):
-                    c = ws.cell(row=row, column=ci, value=hdr if hdr else None)
-                    c.font = F(bold=True, size=12, color=COR_HDR_FG, name="Cambria")
-                    c.fill = FILL_HDR
-                    c.alignment = AL_CTR
-                    c.border = BD_DOUBLE
-                    if hdr == "%":
-                        c.number_format = "0.0%"
-                ws.row_dimensions[row].height = 16.5
-                row += 1
-                continue
+            ws.cell(row=row_n, column=col_count(0),
+                    value="Total").font = F(bold=True, size=12, color=COR_HDR_FG, name="Cambria")
+            ws.cell(row=row_n, column=col_count(0)).fill = FILL_HDR
+            ws.cell(row=row_n, column=col_count(0)).alignment = AL_CTR
+            ws.cell(row=row_n, column=col_count(0)).border = BD_DOUBLE
 
-            label  = str(dr[" "]) if pd.notna(dr[" "]) else ""
-            is_tot = label.strip().lower() == "total"
-            is_sub = bool(dr.get("is_sub", False))
-            is_nps = label in ("NPS",) or label.startswith("NPS =")
+            ws.cell(row=row_n, column=col_pct(0),
+                    value="%").font = F(bold=True, size=12, color=COR_HDR_FG, name="Cambria")
+            ws.cell(row=row_n, column=col_pct(0)).fill = FILL_HDR
+            ws.cell(row=row_n, column=col_pct(0)).alignment = AL_CTR
+            ws.cell(row=row_n, column=col_pct(0)).number_format = "0.0%"
+            ws.cell(row=row_n, column=col_pct(0)).border = BD_DOUBLE
 
-            # Fonte e alinhamento por tipo de linha
+            if has_sep:
+                ws.cell(row=row_n, column=4, value=None)  # separador
+                for i, (ab_label, _) in enumerate(ab_ws[1:], 1):
+                    cc = col_count(i)
+                    cp = col_pct(i)
+                    cl = ws.cell(row=row_n, column=cc, value=ab_label)
+                    cl.font = F(bold=True, size=10, color=COR_HDR_FG, name="Cambria")
+                    cl.fill = FILL_HDR
+                    cl.alignment = AL_CTR
+                    cl.border = BD_DOUBLE
+                    cp_c = ws.cell(row=row_n, column=cp, value="%")
+                    cp_c.font = F(bold=True, size=10, color=COR_HDR_FG, name="Cambria")
+                    cp_c.fill = FILL_HDR
+                    cp_c.alignment = AL_CTR
+                    cp_c.number_format = "0.0%"
+                    cp_c.border = BD_DOUBLE
+            ws.row_dimensions[row_n].height = 16.5
+
+        # ── Escreve uma linha de dado ──────────────────────────────────────────
+        def _write_data_row(row_n: int, label: str, tipo: str,
+                            lookups: list[dict],
+                            is_sub: bool = False, is_tot: bool = False,
+                            is_nps_lbl: bool = False) -> None:
+            is_rm_total = is_tot and tipo == "RM"
             if is_sub:
                 f_lbl = F(italic=True, size=9, color="555555", name="Calibri")
-                f_num = F(italic=True, size=9, color="555555", name="Calibri")
                 a_lbl = AL_IND
                 h = 13
             elif is_tot:
-                f_lbl = F(bold=False, size=12, color=COR_TEXTO, name="Cambria")
-                f_num = F(bold=False, size=12, color=COR_TEXTO, name="Cambria")
+                f_lbl = F(size=12, name="Cambria")
                 a_lbl = AL_LEFT
                 h = 16.5
             else:
-                f_lbl = F(bold=False, size=12, color=COR_TEXTO, name="Cambria")
-                f_num = F(bold=False, size=12, color=COR_TEXTO, name="Cambria")
+                f_lbl = F(size=12, name="Cambria")
                 a_lbl = AL_LEFT
                 h = 15.75
 
-            # Coluna A — label
-            c1 = ws.cell(row=row, column=1, value=label)
+            c1 = ws.cell(row=row_n, column=1, value=label)
             c1.font = f_lbl
             c1.alignment = a_lbl
             if is_tot:
                 c1.border = BD_MEDIUM
 
-            # Coluna B — Total
-            tv = dr["Total"]
-            val_b = num(tv) if not is_nps and tv != "-" else tv
-            c2 = ws.cell(row=row, column=2, value=val_b)
-            c2.font = f_num
-            c2.alignment = AL_CTR
-            if is_tot:
-                c2.border = BD_MEDIUM
+            for i, lkup in enumerate(lookups):
+                raw_count = lkup.get(label, {}).get("Total", 0 if not is_nps_lbl else "-")
+                raw_pct   = lkup.get(label, {}).get("%",     "-")
 
-            # Coluna C — %
-            pv = dr["%"]
-            if isinstance(pv, float) and not np.isnan(pv):
-                val_c = pv
-                c3_fmt = "0.0%"
-            else:
-                val_c = "-" if (is_tot and tipo == "RM") else str(pv) if pv is not None else "-"
-                c3_fmt = "General"
-            c3 = ws.cell(row=row, column=3, value=val_c)
-            c3.font = f_num
-            c3.alignment = AL_CTR
-            c3.number_format = c3_fmt
-            if is_tot:
-                c3.border = BD_MEDIUM
+                f_data = F(italic=is_sub, size=9 if is_sub else 12,
+                           color="555555" if is_sub else COR_TEXTO,
+                           name="Calibri" if is_sub else "Cambria")
 
-            ws.row_dimensions[row].height = h
-            row += 1
+                val_n = num(raw_count) if not is_nps_lbl and raw_count != "-" else raw_count
+                c_cnt = ws.cell(row=row_n, column=col_count(i), value=val_n)
+                c_cnt.font = f_data
+                c_cnt.alignment = AL_CTR
+                if is_tot:
+                    c_cnt.border = BD_MEDIUM
 
-        # Nota de rodapé da pergunta
-        if p.get("nota"):
-            c = ws.cell(row=row, column=1, value=p["nota"])
-            c.font = F(bold=False, size=10, color=COR_NOTA, italic=True, name="Calibri")
+                if isinstance(raw_pct, float) and not np.isnan(raw_pct):
+                    val_p, fmt_p = raw_pct, "0.0%"
+                else:
+                    val_p = "-" if is_rm_total else (str(raw_pct) if raw_pct is not None else "-")
+                    fmt_p = "General"
+                c_pct = ws.cell(row=row_n, column=col_pct(i), value=val_p)
+                c_pct.font = F(italic=is_sub, size=9 if is_sub else 12,
+                               color="555555" if is_sub else COR_TEXTO,
+                               name="Calibri" if is_sub else "Cambria")
+                c_pct.alignment = AL_CTR
+                c_pct.number_format = fmt_p
+                if is_tot:
+                    c_pct.border = BD_MEDIUM
+
+            if has_sep:
+                ws.cell(row=row_n, column=4, value=None)
+            ws.row_dimensions[row_n].height = h
+
+        # ── Construir lookup por label para todas as aberturas ─────────────────
+        def _build_lookups(pergunta: dict, df_list: list) -> list[dict]:
+            """
+            Para cada df em df_list, computa tabular_pergunta e retorna
+            dict {label: {"Total": n, "%": p}}.
+            """
+            result = []
+            for _, df_a in df_list:
+                tab = tabular_pergunta(df_a, pergunta)
+                lkup: dict[str, dict] = {}
+                for _, r in tab.iterrows():
+                    lkup[str(r[" "])] = {"Total": r["Total"], "%": r["%"]}
+                result.append(lkup)
+            return result
+
+        def _build_lookups_item(df_list: list, col: str) -> list[dict]:
+            result = []
+            for _, df_a in df_list:
+                tab = tabular_grid_item(df_a, col)
+                lkup = {str(r[" "]): {"Total": r["Total"], "%": r["%"]}
+                        for _, r in tab.iterrows()}
+                result.append(lkup)
+            return result
+
+        # ── Cabeçalho da aba ──────────────────────────────────────────────────
+        row = 1
+        c = ws.cell(row=row, column=1, value=titulo)
+        c.font = F(bold=True, size=18, color=COR_TITULO, name="Palatino")
+        ws.row_dimensions[row].height = 22.5
+        row += 1
+
+        c = ws.cell(row=row, column=1,
+                    value=f"Total de respostas obtidas: {total_ws}")
+        c.font = F(bold=True, size=12, color=COR_DATA, name="Cambria")
+        ws.row_dimensions[row].height = 15.75
+        row += 1
+        ws.row_dimensions[row].height = 15.75
+        row += 1
+
+        c = ws.cell(row=row, column=1, value=_MET)
+        c.font = F(bold=True, size=12, color=COR_TITULO, name="Palatino")
+        c.alignment = AL_WRAP
+        ws.row_dimensions[row].height = 15.75
+        row += 1
+
+        c = ws.cell(row=row, column=1, value=_ROD)
+        c.font = F(bold=False, size=10, color=COR_NOTA, italic=True, name="Calibri")
+        c.alignment = AL_WRAP
+        ws.row_dimensions[row].height = 15.75
+        row += 1
+        ws.row_dimensions[row].height = 15.75
+        row += 1
+
+        # ── Perguntas ──────────────────────────────────────────────────────────
+        ativas = [p for p in perguntas
+                  if p.get("ativo", True) and p["tipo"] != "IGNORAR"]
+
+        for p in ativas:
+            tipo = p["tipo"]
+
+            # Título da pergunta
+            c = ws.cell(row=row, column=1, value=f"{p['num']}. {p['pergunta']}")
+            c.font = F(bold=False, size=12, color=COR_PERGUNTA, italic=True, name="Calibri")
             c.alignment = AL_WRAP
             ws.row_dimensions[row].height = 15.75
             row += 1
 
-        row += 1  # linha em branco entre perguntas
+            if tipo == "GRID":
+                # ── GRID: sub-tabela por coluna ───────────────────────────────
+                for col in p.get("colunas", []):
+                    item_lbl = _grid_item_label(p, col)
+                    lookups  = _build_lookups_item(ab_ws, col)
+                    base_tab = tabular_grid_item(df_ws, col)
 
-    # ── Dimensões das colunas (padrão) ────────────────────────────────────────
-    ws.column_dimensions["A"].width = 90.71
-    ws.column_dimensions["B"].width = 10.0
-    ws.column_dimensions["C"].width = 9.14
+                    _write_col_headers(row, label_col_a=item_lbl)
+                    row += 1
 
-    # ── Aba Base — cola o DataFrame bruto ─────────────────────────────────────
+                    for _, dr in base_tab.iterrows():
+                        if dr.get("is_sep", False):
+                            continue
+                        lbl    = str(dr[" "]) if pd.notna(dr[" "]) else ""
+                        is_tot = lbl.strip().lower() == "total"
+                        _write_data_row(row, lbl, tipo, lookups,
+                                        is_sub=bool(dr.get("is_sub", False)),
+                                        is_tot=is_tot)
+                        row += 1
+
+            else:
+                # ── Pergunta normal (RU/RM/ABERTA/MEDIA/NPS) ──────────────────
+                base_tab = tabular_pergunta(df_ws, p)
+                if base_tab.empty:
+                    continue
+
+                lookups = _build_lookups(p, ab_ws)
+
+                _write_col_headers(row)
+                row += 1
+
+                for _, dr in base_tab.iterrows():
+                    lbl = str(dr[" "]) if pd.notna(dr[" "]) else ""
+
+                    # Separador NPS
+                    if dr.get("is_sep", False):
+                        ws.row_dimensions[row].height = 8
+                        row += 1
+                        _write_col_headers(row)
+                        row += 1
+                        continue
+
+                    is_tot = lbl.strip().lower() == "total"
+                    is_nps = lbl in ("NPS",) or lbl.startswith("NPS =")
+                    _write_data_row(row, lbl, tipo, lookups,
+                                    is_sub=bool(dr.get("is_sub", False)),
+                                    is_tot=is_tot, is_nps_lbl=is_nps)
+                    row += 1
+
+            # Nota de rodapé
+            if p.get("nota"):
+                c = ws.cell(row=row, column=1, value=p["nota"])
+                c.font = F(bold=False, size=10, color=COR_NOTA, italic=True, name="Calibri")
+                c.alignment = AL_WRAP
+                ws.row_dimensions[row].height = 15.75
+                row += 1
+
+            row += 1  # linha em branco
+
+        # ── Largura das colunas ────────────────────────────────────────────────
+        ws.column_dimensions["A"].width = 90.71
+        ws.column_dimensions["B"].width = 10.0
+        ws.column_dimensions["C"].width = 9.14
+        if has_sep:
+            ws.column_dimensions["D"].width = 3.0
+            col_letters = "EFGHIJKLMNOPQRSTUVWXYZ"
+            for i in range(1, n_ab_ws):
+                base_idx = (i - 1) * 2
+                if base_idx < len(col_letters):
+                    ws.column_dimensions[col_letters[base_idx]].width = 15.0
+                if base_idx + 1 < len(col_letters):
+                    ws.column_dimensions[col_letters[base_idx + 1]].width = 9.0
+
+    # ── Aba "Tab" — base completa ──────────────────────────────────────────────
+    ws_tab = wb.create_sheet("Tab")
+    _escrever_sheet(ws_tab, df, ab_list, total_respostas)
+
+    # ── Abas de filtro (uma por valor único da coluna filtro_col) ─────────────
+    if filtro_col and filtro_col in df.columns:
+        for val in sorted(df[filtro_col].dropna().astype(str).unique()):
+            df_f  = df[df[filtro_col].astype(str) == val].reset_index(drop=True)
+            if len(df_f) == 0:
+                continue
+            ab_f  = preparar_aberturas(df_f, aberturas_cols or [])
+            sheet_name = str(val)[:31]
+            ws_f  = wb.create_sheet(sheet_name)
+            _escrever_sheet(ws_f, df_f, ab_f, len(df_f))
+
+    # ── Aba Base — dados brutos ────────────────────────────────────────────────
     ws_base = wb.create_sheet("Base")
-    # Cabeçalho
     for ci, col_name in enumerate(df.columns, 1):
         c = ws_base.cell(row=1, column=ci, value=str(col_name))
         c.font = Font(name="Calibri", bold=True, size=10)
-    # Dados
     for ri, (_, row_data) in enumerate(df.iterrows(), 2):
         for ci, val in enumerate(row_data, 1):
             ws_base.cell(row=ri, column=ci, value=val)

@@ -24,7 +24,8 @@ import pandas as pd
 
 # ─── Módulos do sistema ───────────────────────────────────────────────────────
 try:
-    from tabulador   import carregar_base, detectar_perguntas, exportar_excel, TIPOS_LABEL
+    from tabulador   import (carregar_base_com_tipos, detectar_perguntas,
+                             exportar_excel, preparar_aberturas, TIPOS_LABEL)
     from gerador_ppt import gerar_ppt
     from tela_revisao import TelaRevisao
     from codificador  import CodificadorIA, TIPOS_PERGUNTA
@@ -108,10 +109,14 @@ class TelaTabulacao(tk.Frame):
         self._codificador = codificador or (CodificadorIA() if _OK else None)
         self._banco = banco
         self._df: pd.DataFrame | None = None
+        self._tipos_sm: dict = {}
         self._arquivo = ""
         self._cols_cod: list[dict] = []
         self._perguntas: list[dict] = []
         self._etapa = 0
+        # Aberturas e filtro
+        self._aberturas_cols: list[str] = []   # colunas selecionadas para cruzar
+        self._v_filtro_col = tk.StringVar(value="")
 
         self._build()
 
@@ -349,15 +354,16 @@ class TelaTabulacao(tk.Frame):
     def _build_tab3(self):
         f = self._tab3
         f.grid_columnconfigure(0, weight=1)
-        f.grid_rowconfigure(1, weight=1)
+        f.grid_rowconfigure(2, weight=1)  # treeview na linha 2
 
+        # ── Cabeçalho ────────────────────────────────────────────────────────
         hf = tk.Frame(f, bg=CARD, padx=16, pady=10)
         hf.grid(row=0, column=0, sticky="ew")
         tk.Label(hf, text="Perguntas para tabulação",
                  bg=CARD, fg=TXT1, font=F_SEC).pack(side=tk.LEFT)
         tk.Label(hf,
                  text="  Duplo clique para editar tipo/nota. "
-                      "Espaçoo para ativar/desativar.",
+                      "Espaço para ativar/desativar.",
                  bg=CARD, fg=TXT4, font=F_SMALL).pack(side=tk.LEFT)
         for txt, cmd in [("Ativar tudo", self._ativar_tudo),
                           ("Desativar tudo", self._desativar_tudo)]:
@@ -365,8 +371,48 @@ class TelaTabulacao(tk.Frame):
                       font=F_SMALL, relief="flat", padx=6, pady=2,
                       cursor="hand2", command=cmd).pack(side=tk.RIGHT, padx=2)
 
+        # ── Painel de Aberturas e Filtro ──────────────────────────────────────
+        af = tk.Frame(f, bg=CARD, padx=14, pady=8)
+        af.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 4))
+        af.grid_columnconfigure(1, weight=1)
+        af.grid_columnconfigure(3, weight=1)
+
+        # Aberturas (cruzamentos)
+        tk.Label(af, text="Cruzar por:", bg=CARD, fg=TXT2,
+                 font=F_SEC).grid(row=0, column=0, sticky="nw", padx=(0, 8))
+
+        ab_frame = tk.Frame(af, bg=CARD)
+        ab_frame.grid(row=0, column=1, sticky="nsew")
+        ab_frame.grid_columnconfigure(0, weight=1)
+
+        self._lb_ab = tk.Listbox(ab_frame, selectmode=tk.MULTIPLE, height=4,
+                                  font=F_BODY, bg=BG, relief="flat",
+                                  highlightthickness=1,
+                                  highlightbackground=BORDER2,
+                                  exportselection=False)
+        sb_ab = ttk.Scrollbar(ab_frame, orient="vertical",
+                               command=self._lb_ab.yview)
+        self._lb_ab.configure(yscrollcommand=sb_ab.set)
+        self._lb_ab.grid(row=0, column=0, sticky="nsew")
+        sb_ab.grid(row=0, column=1, sticky="ns")
+        tk.Label(af, text="  Ctrl+clique p/ múltiplos",
+                 bg=CARD, fg=TXT4, font=F_SMALL
+                 ).grid(row=1, column=1, sticky="w")
+
+        # Filtro por aba
+        tk.Label(af, text="  Gerar aba por:",
+                 bg=CARD, fg=TXT2, font=F_SEC
+                 ).grid(row=0, column=2, sticky="nw", padx=(16, 8))
+        self._cmb_filtro = ttk.Combobox(af, textvariable=self._v_filtro_col,
+                                         font=F_BODY, state="readonly", width=32)
+        self._cmb_filtro.grid(row=0, column=3, sticky="ew")
+        tk.Label(af, text="  (opcional — cria uma aba por valor)",
+                 bg=CARD, fg=TXT4, font=F_SMALL
+                 ).grid(row=1, column=3, sticky="w")
+
+        # ── Treeview de perguntas ─────────────────────────────────────────────
         tvf = tk.Frame(f, bg=CARD, padx=12, pady=8)
-        tvf.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 6))
+        tvf.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 6))
         tvf.grid_columnconfigure(0, weight=1)
         tvf.grid_rowconfigure(0, weight=1)
 
@@ -395,7 +441,7 @@ class TelaTabulacao(tk.Frame):
 
         # Botões gerar
         bf = tk.Frame(f, bg=BG, padx=14, pady=10)
-        bf.grid(row=2, column=0, sticky="ew")
+        bf.grid(row=3, column=0, sticky="ew")
         self._btn_gerar = tk.Button(
             bf, text="Gerar Excel + PowerPoint",
             bg=VERDE, fg="white", font=("Segoe UI", 10, "bold"),
@@ -457,8 +503,9 @@ class TelaTabulacao(tk.Frame):
 
     def _carregar_t(self):
         try:
-            df = carregar_base(self._arquivo)
+            df, tipos_sm = carregar_base_com_tipos(self._arquivo)
             self._df = df
+            self._tipos_sm = tipos_sm
             self.after(0, lambda: self._carregar_ok(df))
         except Exception as e:
             self.after(0, lambda: self._lg(f"ERRO ao carregar: {e}", "err"))
@@ -470,6 +517,30 @@ class TelaTabulacao(tk.Frame):
         self._btn_av1.config(state="normal")
         self._go(1)
         self._lg(f"✓ {len(df)} respondentes  |  {len(df.columns)} colunas", "ok")
+        self._popular_abertura_selector(df)
+
+    def _popular_abertura_selector(self, df: pd.DataFrame) -> None:
+        """Preenche o seletor de aberturas e o combobox de filtro com colunas candidatas."""
+        from tabulador import _IGNORAR as _TAB_IGN
+
+        candidatas = []
+        for col in df.columns:
+            if col in _TAB_IGN or col.startswith("Original_") or col.endswith("_cod"):
+                continue
+            serie = df[col].dropna()
+            n_unique = serie.astype(str).nunique()
+            if 2 <= n_unique <= 25:
+                candidatas.append(col)
+
+        # Preenche listbox de aberturas
+        self._lb_ab.delete(0, tk.END)
+        for c in candidatas:
+            self._lb_ab.insert(tk.END, c)
+
+        # Preenche combobox de filtro
+        opcoes_filtro = [""] + candidatas
+        self._cmb_filtro["values"] = opcoes_filtro
+        self._v_filtro_col.set("")
 
     # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     # ETAPA 2 | Detectar colunas abertas
@@ -705,7 +776,7 @@ class TelaTabulacao(tk.Frame):
 
     def _detectar_pergs_t(self):
         try:
-            pergs = detectar_perguntas(self._df)
+            pergs = detectar_perguntas(self._df, getattr(self, "_tipos_sm", None))
             self.after(0, lambda: self._popular_tv3(pergs))
         except Exception as e:
             self.after(0, lambda: self._lg(f"ERRO perguntas: {e}", "err"))
@@ -836,10 +907,17 @@ class TelaTabulacao(tk.Frame):
                     except Exception:
                         pass
 
+                # Lê seleções de aberturas e filtro
+                sel_indices = self._lb_ab.curselection()
+                ab_cols = [self._lb_ab.get(i) for i in sel_indices]
+                filtro_col = self._v_filtro_col.get().strip() or None
+
                 if excel:
                     self.after(0, lambda: self._lbl_g.config(text="Gerando Excel..."))
                     exportar_excel(df_exp, ativas, saida=saida_xlsx,
-                                   titulo=titulo, total_respostas=len(df_exp))
+                                   titulo=titulo, total_respostas=len(df_exp),
+                                   aberturas_cols=ab_cols if ab_cols else None,
+                                   filtro_col=filtro_col)
                     self.after(0, lambda: self._lg(
                         f"✓ Excel: {Path(saida_xlsx).name}", "ok"))
                 if ppt:
