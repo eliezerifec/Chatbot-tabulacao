@@ -176,24 +176,34 @@ def _prefixo_pergunta(col: str) -> str:
     """
     Extrai o prefixo que identifica a pergunta-raiz de uma coluna.
 
-    Estratégia em ordem de prioridade:
-      1. Se houver '?' no nome → prefixo é tudo até (e incluindo) o '?'
-         Ex: "Qual curso?Cabeleireiro" → "Qual curso?"
-             "Qual curso? (19/10)"    → "Qual curso?"
-      2. Se houver ' (' no nome → prefixo é tudo até o ' ('
-         Ex: "Última palestra (19/10)" → "Última palestra"
-      3. Caso contrário → a própria coluna é o prefixo (pergunta autônoma)
+    Ordem de prioridade:
+      1. '?' → corta aqui (ex: "Qual curso?Cabeleireiro" → "Qual curso?")
+      2. '…' (U+2026) seguido de letra maiúscula ou dígito → separador
+         entre enunciado e opção em bases já processadas do SurveyMonkey
+         (ex: "A escola é…Pública (do governo...)" → "A escola é…")
+      3. '...' (3 pontos) idem
+      4. ':' no final da string → pergunta autônoma terminada em dois-pontos
+      5. Qualquer outro caso → coluna autônoma (NÃO divide em ' (')
     """
-    # Prioridade 1 — corta no '?'
+    # 1. '?'
     idx_q = col.find('?')
     if idx_q != -1:
         return col[:idx_q + 1]
 
-    # Prioridade 2 — corta no ' ('
-    idx_p = col.find(' (')
-    if idx_p != -1:
-        return col[:idx_p]
+    # 2/3. Reticências ('…' U+2026 ou '...')
+    for ell in ('…', '...'):
+        idx_e = col.find(ell)
+        if idx_e != -1:
+            after = col[idx_e + len(ell):]
+            # Só corta se o que segue parece ser uma opção (maiúscula, dígito ou '(')
+            if after and (after[0].isupper() or after[0].isdigit() or after[0] == '('):
+                return col[:idx_e + len(ell)]
 
+    # 4. ':' no final → pergunta autônoma
+    if col.rstrip().endswith(':'):
+        return col
+
+    # 5. Sem separador claro → coluna autônoma (não divide em ' (')
     return col
 
 

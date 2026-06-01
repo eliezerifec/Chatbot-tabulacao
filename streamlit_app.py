@@ -304,18 +304,33 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
 
 
 def _candidatas_abertura(df: pd.DataFrame) -> list[str]:
-    """Colunas categóricas com 2-25 valores únicos — candidatas a abertura."""
+    """
+    Colunas candidatas a abertura / filtro:
+    - 2 a 60 valores únicos (aceita localizações com muitas cidades)
+    - Não muito esparsas (NaN < 90 % das linhas)
+    - Texto curto (mediana ≤ 80 chars) — exclui respostas abertas longas
+    - Não é coluna de sistema
+    """
     try:
         from tabulador import _IGNORAR as _TAB_IGN
     except ImportError:
         _TAB_IGN = set()
+
     result = []
+    n_rows = max(len(df), 1)
     for col in df.columns:
-        if col in _TAB_IGN or col.startswith("Original_") or col.endswith("_cod"):
+        if col in _TAB_IGN or col.endswith("_cod"):
             continue
-        n_unique = df[col].dropna().astype(str).nunique()
-        if 2 <= n_unique <= 25:
-            result.append(col)
+        serie = df[col].dropna().astype(str)
+        if len(serie) / n_rows < 0.10:      # > 90 % NaN → skip
+            continue
+        n_unique = serie.nunique()
+        if not (2 <= n_unique <= 60):
+            continue
+        median_len = serie.str.len().median()
+        if median_len > 80:                 # respostas abertas longas → skip
+            continue
+        result.append(col)
     return result
 
 
@@ -997,10 +1012,10 @@ def _render_tabulador() -> None:
         try:
             tipos_sm = st.session_state.get("tab_tipos_sm", {})
             q0_map   = st.session_state.get("tab_q0_map",   {})
-            st.session_state["tab_questions"] = detectar_perguntas(
-                df_tab, tipos_sm, q0_map
-            )
-            st.session_state["tab_source_name"] = source_name
+            qs = detectar_perguntas(df_tab, tipos_sm, q0_map)
+            st.session_state["tab_questions"]      = qs
+            st.session_state["tab_question_order"] = list(range(len(qs)))
+            st.session_state["tab_source_name"]    = source_name
             st.session_state.pop("tab_excel_bytes", None)
         except Exception as exc:
             st.error(f"Erro ao detectar perguntas: {exc}")
@@ -1012,7 +1027,8 @@ def _render_tabulador() -> None:
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    st.success(f"{len(perguntas_detectadas)} pergunta(s) detectada(s).")
+    n_det = len(perguntas_detectadas)
+    st.success(f"{n_det} pergunta(s) detectada(s).")
 
     # ── Aberturas e Filtro ────────────────────────────────────────────────────
     candidatas_ab = _candidatas_abertura(df_tab)
@@ -1046,65 +1062,97 @@ def _render_tabulador() -> None:
     st.markdown('</div>', unsafe_allow_html=True)
 
     from tabulador import TIPOS_LABEL, tabular_pergunta
-    tipo_keys = list(TIPOS_LABEL.keys())
+    tipo_keys   = list(TIPOS_LABEL.keys())
     tipo_labels = [f"{key} - {TIPOS_LABEL[key]}" for key in tipo_keys]
+
+    # ── Ordem atual das perguntas (suporta reordenação) ───────────────────────
+    order: list[int] = st.session_state.get(
+        "tab_question_order", list(range(n_det))
+    )
+    # Garante consistência se o número de perguntas mudou
+    if len(order) != n_det or set(order) != set(range(n_det)):
+        order = list(range(n_det))
+        st.session_state["tab_question_order"] = order
+
     perguntas_config: list[dict] = []
 
-    for idx, pergunta in enumerate(perguntas_detectadas):
-        label = f"{pergunta.get('num', f'P{idx + 1:02d}')} - {pergunta.get('pergunta', '')}"
-        with st.expander(label, expanded=idx < 2):
-            top_a, top_b, top_c = st.columns([1, 2, 4])
-            ativo = top_a.checkbox(
-                "Ativa", value=pergunta.get("ativo", True), key=f"tab_active_{idx}"
-            )
-            tipo_atual = pergunta.get("tipo", "ABERTA")
-            tipo_index = tipo_keys.index(tipo_atual) if tipo_atual in tipo_keys \
-                         else tipo_keys.index("ABERTA")
-            tipo_label = top_b.selectbox(
-                "Tipo", tipo_labels, index=tipo_index, key=f"tab_type_{idx}"
-            )
-            texto = top_c.text_input(
-                "Pergunta",
-                value=str(pergunta.get("pergunta", "")),
-                key=f"tab_question_{idx}",
-            )
-            nota = st.text_area(
-                "Nota",
-                value=str(pergunta.get("nota", "")),
-                height=70,
-                key=f"tab_note_{idx}",
-            )
+    for pos, orig_idx in enumerate(order):
+        pergunta = perguntas_detectadas[orig_idx]
+        pnum     = f"P{pos + 1:02d}"
+        label    = f"{pnum} - {pergunta.get('pergunta', '')[:80]}"
 
-            # ── Ordenação das opções ──────────────────────────────────────────
-            ordem_raw = st.text_input(
-                "Ordem das opções (separar por ; ou quebra de linha — deixe em branco para automático)",
-                value="; ".join(pergunta.get("ordem") or []),
-                help="Ex: Sim; Não; Talvez    |    Deixe vazio para ordenar por frequência ou faixa de preço.",
-                key=f"tab_ordem_{idx}",
-            )
-            ordem_lista = [o.strip() for o in re.split(r"[;\n]", ordem_raw) if o.strip()]
+        # ── Botões ↑ ↓ + expander lado a lado ───────────────────────────────
+        col_btn, col_exp = st.columns([0.05, 0.95])
+        with col_btn:
+            st.write("")  # espaçador vertical
+            if st.button("↑", key=f"tab_up_{orig_idx}",
+                         help="Mover para cima",
+                         disabled=(pos == 0)):
+                order[pos], order[pos - 1] = order[pos - 1], order[pos]
+                st.session_state["tab_question_order"] = order
+                st.rerun()
+            if st.button("↓", key=f"tab_dn_{orig_idx}",
+                         help="Mover para baixo",
+                         disabled=(pos == n_det - 1)):
+                order[pos], order[pos + 1] = order[pos + 1], order[pos]
+                st.session_state["tab_question_order"] = order
+                st.rerun()
 
-            cfg = dict(pergunta)
-            cfg["ativo"]    = ativo
-            cfg["tipo"]     = tipo_keys[tipo_labels.index(tipo_label)]
-            cfg["pergunta"] = texto.strip() or pergunta.get("pergunta", "")
-            cfg["nota"]     = nota.strip()
-            cfg["ordem"]    = ordem_lista
-            perguntas_config.append(cfg)
+        with col_exp:
+            with st.expander(label, expanded=(pos < 2)):
+                top_a, top_b, top_c = st.columns([1, 2, 4])
+                ativo = top_a.checkbox(
+                    "Ativa", value=pergunta.get("ativo", True),
+                    key=f"tab_active_{orig_idx}",
+                )
+                tipo_atual = pergunta.get("tipo", "ABERTA")
+                tipo_index = tipo_keys.index(tipo_atual) if tipo_atual in tipo_keys \
+                             else tipo_keys.index("ABERTA")
+                tipo_label = top_b.selectbox(
+                    "Tipo", tipo_labels, index=tipo_index,
+                    key=f"tab_type_{orig_idx}",
+                )
+                texto = top_c.text_input(
+                    "Pergunta",
+                    value=str(pergunta.get("pergunta", "")),
+                    key=f"tab_question_{orig_idx}",
+                )
+                nota = st.text_area(
+                    "Nota",
+                    value=str(pergunta.get("nota", "")),
+                    height=70,
+                    key=f"tab_note_{orig_idx}",
+                )
+                ordem_raw = st.text_input(
+                    "Ordem das opções (sep. por ; — vazio = automático)",
+                    value="; ".join(pergunta.get("ordem") or []),
+                    help="Ex: Sim; Não; Talvez",
+                    key=f"tab_ordem_{orig_idx}",
+                )
+                ordem_lista = [o.strip() for o in re.split(r"[;\n]", ordem_raw) if o.strip()]
 
-            colunas = cfg.get("colunas", [])
-            st.caption(
-                "Colunas: " + ", ".join(str(c) for c in colunas[:6])
-                + ("..." if len(colunas) > 6 else "")
-            )
-            if st.checkbox("Previa da tabulacao", key=f"tab_preview_{idx}"):
-                try:
-                    st.dataframe(
-                        tabular_pergunta(df_tab, cfg),
-                        use_container_width=True, hide_index=True,
-                    )
-                except Exception as exc:
-                    st.warning(f"Nao foi possivel tabular esta pergunta: {exc}")
+                cfg = dict(pergunta)
+                cfg["num"]      = pnum          # número atualizado pela posição
+                cfg["ativo"]    = ativo
+                cfg["tipo"]     = tipo_keys[tipo_labels.index(tipo_label)]
+                cfg["pergunta"] = texto.strip() or pergunta.get("pergunta", "")
+                cfg["nota"]     = nota.strip()
+                cfg["ordem"]    = ordem_lista
+                perguntas_config.append(cfg)
+
+                colunas = cfg.get("colunas", [])
+                st.caption(
+                    "Colunas: " + ", ".join(str(c) for c in colunas[:6])
+                    + ("..." if len(colunas) > 6 else "")
+                )
+                if st.checkbox("Prévia da tabulação", key=f"tab_preview_{orig_idx}"):
+                    try:
+                        st.dataframe(
+                            tabular_pergunta(df_tab, cfg),
+                            use_container_width=True, hide_index=True,
+                        )
+                    except Exception as exc:
+                        st.warning(f"Nao foi possivel tabular esta pergunta: {exc}")
 
     ativas = [p for p in perguntas_config if p.get("ativo") and p.get("tipo") != "IGNORAR"]
 
