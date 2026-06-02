@@ -281,10 +281,10 @@ def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
                      aberturas_cols: list[str] | None = None,
-                     filtro_cols: list[str] | None = None) -> bytes:
+                     filtro_col: list[str] | None = None) -> bytes:
     """
     Gera o Excel de tabulação.
-    filtro_cols: lista de colunas para gerar abas separadas.
+    filtro_col: lista de colunas para gerar abas separadas.
                  Para cada coluna, cria uma aba por valor único.
     """
     import importlib, sys
@@ -304,7 +304,7 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
             titulo=titulo or "Pesquisa IFec RJ",
             total_respostas=len(df_clean),
             aberturas_cols=aberturas_cols or None,
-            filtro_cols=filtro_cols or None,
+            filtro_col=filtro_col or None,
         )
         return Path(path).read_bytes()
     finally:
@@ -1082,7 +1082,7 @@ def _render_tabulador() -> None:
                      "Selecione quantas quiser.",
                 key="tab_filtro",
             )
-            filtro_cols_sel = [label_to_col[l] for l in filtro_labels_sel]
+            filtro_col_sel = [label_to_col[l] for l in filtro_labels_sel]
 
     titulo = st.text_input("Titulo do relatorio", value="Pesquisa IFec RJ", key="tab_title")
     sub_a, sub_b = st.columns(2)
@@ -1245,7 +1245,7 @@ def _render_tabulador() -> None:
                     st.session_state["tab_excel_bytes"] = _build_tab_excel(
                         df_tab, ativas, titulo,
                         aberturas_cols=ab_sel or None,
-                        filtro_cols=filtro_cols_sel or None,
+                        filtro_col=filtro_col_sel or None,
                     )
                 except Exception as exc:
                     st.error(f"Erro ao gerar Excel: {exc}")
