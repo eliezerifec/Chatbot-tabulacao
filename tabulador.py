@@ -1085,8 +1085,9 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
             if len(df_f) == 0:
                 continue
             ab_f = preparar_aberturas(df_f, aberturas_cols or [])
-            # Nome da aba: valor (máx 31 chars), deduplica se necessário
-            base_name = str(val)[:31]
+            # Nome da aba: caracteres inválidos no Excel removidos, máx 31 chars
+            safe = re.sub(r'[\\/*?\[\]:]', '', str(val)).strip()
+            base_name = safe[:31] or f"Aba_{len(_used_sheet_names)}"
             sheet_name = base_name
             suffix = 2
             while sheet_name in _used_sheet_names:
