@@ -1248,9 +1248,7 @@ def _render_tabulador() -> None:
                         filtro_cols=filtro_cols_sel or None,
                     )
                 except Exception as exc:
-                    import traceback
                     st.error(f"Erro ao gerar Excel: {exc}")
-                    st.code(traceback.format_exc(), language="python")
         if "tab_excel_bytes" in st.session_state:
             st.download_button(
                 "Baixar Excel",
