@@ -1,4 +1,4 @@
-﻿"""
+"""
 tela_tabulacao.py  —  Pipeline completo: Codificação → Tabulação → PPT
 =======================================================================
 Integra ao app.py existente:
