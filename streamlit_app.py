@@ -305,32 +305,29 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
 
 def _candidatas_abertura(df: pd.DataFrame) -> list[str]:
     """
-    Colunas candidatas a abertura / filtro:
-    - 2 a 60 valores únicos (aceita localizações com muitas cidades)
-    - Não muito esparsas (NaN < 90 % das linhas)
-    - Texto curto (mediana ≤ 80 chars) — exclui respostas abertas longas
-    - Não é coluna de sistema
+    Retorna todas as colunas da base que podem ser usadas como abertura ou filtro.
+    Exclui apenas colunas de sistema (respondent_id, datas, etc.) e colunas _cod.
+    O usuário pode escolher qualquer coluna — incluindo perguntas.
     """
     try:
         from tabulador import _IGNORAR as _TAB_IGN
     except ImportError:
         _TAB_IGN = set()
 
+    _SISTEMA = {
+        "respondent_id", "collector_id", "date_created", "date_modified",
+        "ip_address", "email_address", "first_name", "last_name", "custom_1",
+        "NUMDBM", "peso", "sem.peso", "TOTAL", "TRIMESTRE",
+    }
+
     result = []
-    n_rows = max(len(df), 1)
     for col in df.columns:
-        if col in _TAB_IGN or col.endswith("_cod"):
+        col_str = str(col)
+        if col_str in _TAB_IGN or col_str in _SISTEMA:
             continue
-        serie = df[col].dropna().astype(str)
-        if len(serie) / n_rows < 0.10:      # > 90 % NaN → skip
+        if col_str.endswith("_cod") or col_str.startswith("Original_"):
             continue
-        n_unique = serie.nunique()
-        if not (2 <= n_unique <= 60):
-            continue
-        median_len = serie.str.len().median()
-        if median_len > 80:                 # respostas abertas longas → skip
-            continue
-        result.append(col)
+        result.append(col_str)
     return result
 
 
@@ -1031,26 +1028,42 @@ def _render_tabulador() -> None:
     st.success(f"{n_det} pergunta(s) detectada(s).")
 
     # ── Aberturas e Filtro ────────────────────────────────────────────────────
-    candidatas_ab = _candidatas_abertura(df_tab)
-    with st.expander("⚙️ Cruzamentos e filtros por aba", expanded=bool(candidatas_ab)):
+    todas_cols = _candidatas_abertura(df_tab)
+
+    # Monta labels com número de valores únicos para ajudar na escolha
+    def _label_col(col: str) -> str:
+        try:
+            n = df_tab[col].dropna().astype(str).nunique()
+            return f"{col}  ({n} valores)"
+        except Exception:
+            return col
+
+    col_labels   = [_label_col(c) for c in todas_cols]
+    label_to_col = dict(zip(col_labels, todas_cols))
+    col_to_label = dict(zip(todas_cols, col_labels))
+
+    with st.expander("⚙️ Cruzamentos e filtros por aba", expanded=True):
         col_ab, col_fil = st.columns(2)
         with col_ab:
-            ab_sel = st.multiselect(
+            ab_labels_sel = st.multiselect(
                 "Cruzar por (aberturas):",
-                options=candidatas_ab,
+                options=col_labels,
                 default=[],
-                help="Gera colunas de Total + % para cada valor das colunas selecionadas.",
+                help="Gera colunas Total + % por valor. Use a busca para encontrar a coluna.",
                 key="tab_aberturas",
             )
+            ab_sel = [label_to_col[l] for l in ab_labels_sel]
+
         with col_fil:
-            filtro_options = ["(nenhum)"] + candidatas_ab
-            filtro_sel = st.selectbox(
+            filtro_label_options = ["(nenhum)"] + col_labels
+            filtro_label_sel = st.selectbox(
                 "Gerar aba por (filtro):",
-                options=filtro_options,
+                options=filtro_label_options,
                 index=0,
-                help="Cria uma aba separada no Excel para cada valor único da coluna selecionada.",
+                help="Cria uma aba separada no Excel para cada valor único da coluna.",
                 key="tab_filtro",
             )
+            filtro_sel = label_to_col.get(filtro_label_sel, "(nenhum)")
 
     titulo = st.text_input("Titulo do relatorio", value="Pesquisa IFec RJ", key="tab_title")
     sub_a, sub_b = st.columns(2)
