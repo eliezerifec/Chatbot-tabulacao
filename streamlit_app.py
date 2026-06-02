@@ -287,7 +287,12 @@ def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
     filtro_cols: lista de colunas para gerar abas separadas.
                  Para cada coluna, cria uma aba por valor único.
     """
-    from tabulador import exportar_excel
+    import importlib, sys
+    # Garante módulo mais recente (evita cache de módulo antigo no Streamlit)
+    if "tabulador" in sys.modules:
+        importlib.reload(sys.modules["tabulador"])
+    from tabulador import exportar_excel  # noqa: E402
+
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         path = tmp.name
     df_clean = _sanitize_export_df(df)
@@ -954,8 +959,16 @@ def _render_tabulador() -> None:
         unsafe_allow_html=True,
     )
 
-    # Limpa cache quando o usuário quiser (útil após atualizações de código)
+    # Limpa cache e recarrega módulos (útil após atualizações de código)
     if st.button("🔄 Limpar cache e reiniciar leitura", key="tab_clear_cache"):
+        import importlib, sys
+        # Recarrega módulos do sistema para pegar alterações de código
+        for mod_name in ["tabulador", "gerador_ppt", "codificador"]:
+            if mod_name in sys.modules:
+                try:
+                    importlib.reload(sys.modules[mod_name])
+                except Exception:
+                    pass
         st.cache_data.clear()
         for k in list(st.session_state.keys()):
             if k.startswith("tab_"):
