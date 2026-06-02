@@ -749,7 +749,8 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
                    total_respostas: int = None,
                    metodologia: str = None, rodape: str = None,
                    aberturas_cols: list[str] | None = None,
-                   filtro_col: str | None = None):
+                   filtro_col: str | None = None,
+                   filtro_cols: list[str] | None = None):
 
     from openpyxl.styles import Border, Side
 
@@ -1069,15 +1070,30 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
     ws_tab = wb.create_sheet("Tab")
     _escrever_sheet(ws_tab, df, ab_list, total_respostas)
 
-    # ── Abas de filtro (uma por valor único da coluna filtro_col) ─────────────
-    if filtro_col and filtro_col in df.columns:
-        for val in sorted(df[filtro_col].dropna().astype(str).unique()):
-            df_f  = df[df[filtro_col].astype(str) == val].reset_index(drop=True)
+    # ── Abas de filtro (uma por valor único de cada coluna em filtro_cols) ──────
+    # Suporta tanto filtro_col (str, legado) quanto filtro_cols (list, novo)
+    _filtro_cols: list[str] = []
+    if filtro_cols:
+        _filtro_cols = [c for c in filtro_cols if c and c in df.columns]
+    elif filtro_col and filtro_col in df.columns:
+        _filtro_cols = [filtro_col]
+
+    _used_sheet_names: set[str] = {"Tab"}
+    for fc in _filtro_cols:
+        for val in sorted(df[fc].dropna().astype(str).unique()):
+            df_f = df[df[fc].astype(str) == val].reset_index(drop=True)
             if len(df_f) == 0:
                 continue
-            ab_f  = preparar_aberturas(df_f, aberturas_cols or [])
-            sheet_name = str(val)[:31]
-            ws_f  = wb.create_sheet(sheet_name)
+            ab_f = preparar_aberturas(df_f, aberturas_cols or [])
+            # Nome da aba: valor (máx 31 chars), deduplica se necessário
+            base_name = str(val)[:31]
+            sheet_name = base_name
+            suffix = 2
+            while sheet_name in _used_sheet_names:
+                sheet_name = f"{base_name[:28]}_{suffix}"
+                suffix += 1
+            _used_sheet_names.add(sheet_name)
+            ws_f = wb.create_sheet(sheet_name)
             _escrever_sheet(ws_f, df_f, ab_f, len(df_f))
 
     # ── Aba Base — dados brutos ────────────────────────────────────────────────
