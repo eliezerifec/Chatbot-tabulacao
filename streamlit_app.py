@@ -281,19 +281,25 @@ def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def _build_tab_excel(df: pd.DataFrame, perguntas: list[dict], titulo: str,
                      aberturas_cols: list[str] | None = None,
-                     filtro_col: str | None = None) -> bytes:
+                     filtro_cols: list[str] | None = None) -> bytes:
+    """
+    Gera o Excel de tabulação.
+    filtro_cols: lista de colunas para gerar abas separadas.
+                 Para cada coluna, cria uma aba por valor único.
+    """
     from tabulador import exportar_excel
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         path = tmp.name
+    df_clean = _sanitize_export_df(df)
     try:
         exportar_excel(
-            _sanitize_export_df(df),
+            df_clean,
             perguntas,
             saida=path,
             titulo=titulo or "Pesquisa IFec RJ",
-            total_respostas=len(df),
+            total_respostas=len(df_clean),
             aberturas_cols=aberturas_cols or None,
-            filtro_col=filtro_col or None,
+            filtro_cols=filtro_cols or None,
         )
         return Path(path).read_bytes()
     finally:
@@ -1055,15 +1061,15 @@ def _render_tabulador() -> None:
             ab_sel = [label_to_col[l] for l in ab_labels_sel]
 
         with col_fil:
-            filtro_label_options = ["(nenhum)"] + col_labels
-            filtro_label_sel = st.selectbox(
+            filtro_labels_sel = st.multiselect(
                 "Gerar aba por (filtro):",
-                options=filtro_label_options,
-                index=0,
-                help="Cria uma aba separada no Excel para cada valor único da coluna.",
+                options=col_labels,
+                default=[],
+                help="Cria uma aba separada para cada valor único de cada coluna selecionada. "
+                     "Selecione quantas quiser.",
                 key="tab_filtro",
             )
-            filtro_sel = label_to_col.get(filtro_label_sel, "(nenhum)")
+            filtro_cols_sel = [label_to_col[l] for l in filtro_labels_sel]
 
     titulo = st.text_input("Titulo do relatorio", value="Pesquisa IFec RJ", key="tab_title")
     sub_a, sub_b = st.columns(2)
@@ -1223,11 +1229,10 @@ def _render_tabulador() -> None:
                      use_container_width=True, key="tab_gen_xlsx"):
             with st.spinner("Gerando Excel..."):
                 try:
-                    _filtro = filtro_sel if filtro_sel != "(nenhum)" else None
                     st.session_state["tab_excel_bytes"] = _build_tab_excel(
                         df_tab, ativas, titulo,
                         aberturas_cols=ab_sel or None,
-                        filtro_col=_filtro,
+                        filtro_cols=filtro_cols_sel or None,
                     )
                 except Exception as exc:
                     st.error(f"Erro ao gerar Excel: {exc}")
