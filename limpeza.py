@@ -329,9 +329,15 @@ def aplicar_limpeza(
     remover_sem_resposta: bool = True,
     remover_duplicados: bool = True,
     col_id: str = "respondent_id",
+    col_teste: str | None = None,
+    ids_excluir: list[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """
     Aplica as regras ativas e a limpeza genérica.
+
+    col_teste    — coluna do pesquisador: remove linhas com valor vazio ou
+                   "TESTE" (testes de campo).
+    ids_excluir  — respondent_ids a remover manualmente.
 
     Retorna (df_limpo, relatorio, resumo):
       relatorio — uma linha por ação: [respondente, acao, regra, detalhe]
@@ -342,6 +348,42 @@ def aplicar_limpeza(
 
     ids = (_serie(df_limpo, col_id).astype(str) if col_id in df_limpo.columns
            else pd.Series(df_limpo.index.astype(str), index=df_limpo.index))
+
+    # ── Testes de campo: coluna do pesquisador vazia ou "TESTE" ──────────────
+    linhas_teste = 0
+    if col_teste and col_teste in df_limpo.columns:
+        serie_t = _serie(df_limpo, col_teste)
+        eh_teste = (
+            serie_t.isna()
+            | serie_t.astype(str).str.strip().str.lower().isin(_VAZIOS)
+            | serie_t.astype(str).str.strip().str.upper().eq("TESTE")
+        )
+        linhas_teste = int(eh_teste.sum())
+        for idx in df_limpo.index[eh_teste]:
+            acoes.append({
+                "respondente": ids.at[idx],
+                "acao": "linha removida (teste de campo)",
+                "regra": "limpeza genérica",
+                "detalhe": f'coluna "{col_teste[:50]}" vazia ou TESTE',
+            })
+        df_limpo = df_limpo[~eh_teste]
+        ids = ids[~eh_teste]
+
+    # ── Exclusão manual por respondent_id ─────────────────────────────────────
+    linhas_manuais = 0
+    if ids_excluir:
+        alvo_ids = {str(i).strip() for i in ids_excluir if str(i).strip()}
+        excluir = ids.str.strip().isin(alvo_ids)
+        linhas_manuais = int(excluir.sum())
+        for idx in df_limpo.index[excluir]:
+            acoes.append({
+                "respondente": ids.at[idx],
+                "acao": "linha removida (exclusão manual)",
+                "regra": "lista de IDs informada",
+                "detalhe": "",
+            })
+        df_limpo = df_limpo[~excluir]
+        ids = ids[~excluir]
 
     # ── Regras de pulo: apaga respostas em perguntas que deviam ser puladas ──
     celulas_limpas = 0
@@ -422,5 +464,7 @@ def aplicar_limpeza(
         "celulas_limpas": celulas_limpas,
         "linhas_vazias_removidas": linhas_vazias,
         "linhas_duplicadas_removidas": linhas_duplicadas,
+        "linhas_teste_removidas": linhas_teste,
+        "linhas_excluidas_manual": linhas_manuais,
     }
     return df_limpo, relatorio, resumo

@@ -12,15 +12,19 @@ Automatiza o fluxo inteiro: base bruta do SurveyMonkey → base final + tabulaç
    (ex.: "Se NÃO, pule para a P10", "AGRADEÇA E ENCERRE A PESQUISA").
 2. **Limpeza** *(checkpoint)* — a IA lê o questionário, extrai as regras de pulo
    e mostra quantas violações cada uma encontra. Você aprova/desativa regras
-   antes de aplicar. Também remove linhas vazias e respondentes duplicados.
-   Gera relatório de tudo que foi alterado.
+   antes de aplicar. Também remove linhas vazias, respondentes duplicados,
+   testes de campo (coluna Pesquisador vazia ou "TESTE") e aceita uma lista de
+   respondent_ids para exclusão manual. Gera relatório de tudo que foi alterado.
 3. **Codificação** — as colunas abertas ("Outro. Qual?", subcampos "1:/2:/3:")
    são detectadas automaticamente; subcolunas da mesma pergunta recebem o mesmo
-   conjunto de categorias.
+   conjunto de categorias, e categorias repetidas do mesmo respondente contam
+   uma vez só.
 4. **Categorias** *(checkpoint)* — revise, renomeie ou una as categorias criadas
    pela IA antes do merge.
 5. **Base final** — as colunas codificadas (`_cod`) entram ao lado das originais;
-   baixe a base final, o relatório de limpeza e a tabulação em Excel + PowerPoint.
+   escolha as colunas de sistema a excluir e as aberturas (cruzamentos, ex.:
+   Localização) e baixe a base final, o relatório de limpeza e a tabulação em
+   Excel + PowerPoint. As notas de pulo das regras aprovadas entram nas tabelas.
 
 ### Codificador
 Fluxo original: arquivo com uma aba por pergunta aberta → codificação IA →

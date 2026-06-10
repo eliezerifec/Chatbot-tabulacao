@@ -155,6 +155,34 @@ def _grupos_abertas(df: pd.DataFrame, perguntas: list[dict]) -> list[dict]:
     return grupos
 
 
+def _dedupe_categorias(coded: dict[str, pd.Series], grupos: list[dict]) -> int:
+    """
+    Remove categorias repetidas do MESMO respondente dentro de uma pergunta:
+    se a 1ª e a 2ª característica caíram na mesma categoria, conta uma vez só
+    (equivale à etapa manual do para_excluir.xlsx do fluxo em R).
+    Retorna o número de menções removidas.
+    """
+    removidas = 0
+    for g in grupos:
+        cols = [c for c in g["cols"] if c in coded]
+        if not cols:
+            continue
+        for idx in coded[cols[0]].index:
+            vistos: set[str] = set()
+            for c in cols:
+                val = coded[c].at[idx]
+                if pd.isna(val):
+                    continue
+                tokens = [t.strip() for t in str(val).split(_SEP_CAT) if t.strip()]
+                mantidos = [t for t in tokens if t not in vistos]
+                vistos.update(mantidos)
+                if len(mantidos) != len(tokens):
+                    removidas += len(tokens) - len(mantidos)
+                    coded[c].at[idx] = (_SEP_CAT.join(mantidos)
+                                        if mantidos else pd.NA)
+    return removidas
+
+
 def _aplicar_renomeacao(serie: pd.Series, mapa: dict[str, str]) -> pd.Series:
     """Renomeia categorias token a token (células podem ter 'A, B, C')."""
     def _troca(val):
@@ -325,6 +353,30 @@ def _etapa2_limpeza():
                              value=True, key="pipe_rem_vazias")
     rem_dup = st.checkbox("Remover respondentes duplicados (respondent_id)",
                           value=True, key="pipe_rem_dup")
+
+    col_teste = next(
+        (c for c in df.columns
+         if str(c).strip().lower().startswith(("pesquisador", "entrevistador"))),
+        None,
+    )
+    rem_teste = False
+    if col_teste:
+        rem_teste = st.checkbox(
+            f'Remover testes de campo (coluna "{col_teste}" vazia ou "TESTE")',
+            value=True, key="pipe_rem_teste",
+        )
+
+    ids_raw = st.text_area(
+        "Respondentes a excluir manualmente (respondent_id — um por linha "
+        "ou separados por vírgula)",
+        value=_sg("pipe_ids_excluir_raw", ""),
+        placeholder="119096690828\n119100634613",
+        key="pipe_ids_excluir_input",
+    )
+    ids_excluir = [t.strip() for t in ids_raw.replace(",", "\n").splitlines()
+                   if t.strip()]
+    if ids_excluir:
+        st.caption(f"{len(ids_excluir)} ID(s) na lista de exclusão manual.")
     st.markdown('</div>', unsafe_allow_html=True)
 
     col_a, col_b, col_c = st.columns(3)
@@ -344,10 +396,13 @@ def _etapa2_limpeza():
         if st.button("Aplicar limpeza e avançar", type="primary",
                      use_container_width=True, key="pipe_next2"):
             with st.spinner("Aplicando limpeza..."):
+                _ss("pipe_ids_excluir_raw", ids_raw)
                 df_limpo, relatorio, resumo = limpeza.aplicar_limpeza(
                     df, perguntas, regras,
                     remover_sem_resposta=rem_vazias,
                     remover_duplicados=rem_dup,
+                    col_teste=col_teste if rem_teste else None,
+                    ids_excluir=ids_excluir,
                 )
             _ss("pipe_df_limpo", df_limpo)
             _ss("pipe_relatorio", relatorio)
@@ -515,7 +570,9 @@ def _rodar_codificacao(df: pd.DataFrame, selecionados: list, contexto: str):
         info_grupos.append({**grupo, "modo": modo})
 
     progress.progress(1.0, text="Codificação concluída.")
+    n_dedupe = _dedupe_categorias(coded, info_grupos)
     _ss("pipe_coded", coded)
+    _ss("pipe_dedupe_n", n_dedupe)
     _ss("pipe_grupos_codificados", info_grupos)
     _ss("pipe_step", 4)
     st.rerun()
@@ -548,6 +605,14 @@ def _etapa4_categorias():
         '(dê o mesmo nome para unificar) — depois aprove para gerar a base final</p>',
         unsafe_allow_html=True,
     )
+
+    n_dedupe = _sg("pipe_dedupe_n", 0)
+    if n_dedupe:
+        st.caption(
+            f"{n_dedupe} menção(ões) repetidas do mesmo respondente foram "
+            "removidas automaticamente (mesma categoria em mais de um subcampo "
+            "da mesma pergunta)."
+        )
 
     nomes = [f'{g["num"]} — {g["pergunta"][:80]}' for g in grupos]
     sel = st.selectbox("Pergunta codificada", nomes, key="pipe_cat_sel")
@@ -648,6 +713,71 @@ def _montar_base_final(df: pd.DataFrame, coded: dict[str, pd.Series]) -> pd.Data
     return df_final
 
 
+_COLS_SISTEMA_REMOVER = (
+    "collector_id", "ip_address", "email_address", "first_name",
+    "last_name", "custom_1", "pesquisador", "entrevistador", "observações",
+    "observacoes", "comentário", "comentario",
+)
+
+
+def _sugerir_remover(df: pd.DataFrame) -> list[str]:
+    """Colunas de sistema/controle que normalmente saem da base final."""
+    out = []
+    for c in df.columns:
+        nome = str(c).strip().lower()
+        if any(nome == p or nome.startswith(p) for p in _COLS_SISTEMA_REMOVER):
+            out.append(str(c))
+    return out
+
+
+def _candidatas_abertura(df: pd.DataFrame) -> list[str]:
+    """Colunas viáveis para cruzamento: fechadas, com até 15 valores únicos."""
+    out = []
+    for c in df.columns:
+        nome = str(c)
+        if nome.endswith("_cod") or nome == "respondent_id":
+            continue
+        serie = _serie_df(df, nome).dropna()
+        n = serie.astype(str).str.strip().nunique()
+        if 1 < n <= 15:
+            out.append(nome)
+    return out
+
+
+def _notas_de_pulo(perguntas_tab: list[dict]) -> int:
+    """
+    Anexa às perguntas da tabulação as notas de pulo derivadas das regras
+    aprovadas na limpeza (ex.: 'Não respondida por quem respondeu Não na P03').
+    """
+    regras = _sg("pipe_regras", []) or []
+    perguntas_orig = _sg("pipe_perguntas", []) or []
+    texto_por_num = {p["num"]: p["pergunta"] for p in perguntas_orig}
+
+    notas: dict[str, list[str]] = {}
+    for r in regras:
+        if not r.get("ativa", True) or r.get("tipo") == "encerramento":
+            continue
+        vals = " / ".join(r["se_valores"])
+        cond = texto_por_num.get(r["se_pergunta"], r["se_pergunta"])
+        cond_curto = cond[:80] + ("..." if len(cond) > 80 else "")
+        for num in r["perguntas_alvo"]:
+            alvo = texto_por_num.get(num)
+            if alvo:
+                notas.setdefault(alvo, []).append(
+                    f'Pergunta não aplicada a quem respondeu "{vals}" em '
+                    f'"{cond_curto}".'
+                )
+
+    aplicadas = 0
+    for p in perguntas_tab:
+        extras = notas.get(p["pergunta"])
+        if extras:
+            extra_txt = "\n".join(dict.fromkeys(extras))
+            p["nota"] = (p["nota"] + "\n" + extra_txt) if p.get("nota") else extra_txt
+            aplicadas += 1
+    return aplicadas
+
+
 def _etapa5_final():
     df = _sg("pipe_df_limpo")
     coded: dict[str, pd.Series] = _sg("pipe_coded", {})
@@ -668,9 +798,37 @@ def _etapa5_final():
     c2.metric("Colunas (com codificação)", len(df_final.columns))
     c3.metric("Perguntas codificadas", len(_sg("pipe_grupos_codificados", [])))
 
+    # ── Opções de saída ───────────────────────────────────────────────────────
+    cols_remover = st.multiselect(
+        "Colunas excluídas da base final e da tabulação",
+        options=[str(c) for c in df_final.columns],
+        default=_sugerir_remover(df_final),
+        key="pipe_cols_remover",
+        help="Sugestão: colunas de sistema do SurveyMonkey e de controle de campo.",
+    )
+    df_export = (df_final.drop(columns=cols_remover)
+                 if cols_remover else df_final)
+
+    candidatas = _candidatas_abertura(df_export)
+    default_ab = [c for c in candidatas
+                  if str(c).strip().lower().startswith("localização")
+                  or str(c).strip().lower().startswith("localizacao")]
+    aberturas = st.multiselect(
+        "Aberturas (cruzamentos) — cada tabela sai com Total + uma coluna por valor",
+        options=candidatas,
+        default=default_ab,
+        key="pipe_aberturas",
+    )
+    periodo = st.text_input(
+        "Período do campo (aparece no PowerPoint)",
+        value=_sg("pipe_periodo", ""),
+        placeholder="Ex.: 01/04/2026 a 22/05/2026",
+        key="pipe_periodo_input",
+    )
+
     st.download_button(
         "Baixar base final (.xlsx)",
-        data=_df_para_excel({"Base final": _sanitize_export_df(df_final)}),
+        data=_df_para_excel({"Base final": _sanitize_export_df(df_export)}),
         file_name="base_final.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
@@ -691,17 +849,23 @@ def _etapa5_final():
                  use_container_width=True, key="pipe_gerar_tab"):
         from tabulador import detectar_perguntas, exportar_excel
 
-        df_clean = _sanitize_export_df(df_final)
+        _ss("pipe_periodo", periodo)
+        df_clean = _sanitize_export_df(df_export)
         with st.spinner("Detectando perguntas e gerando a tabulação..."):
             perguntas_tab = detectar_perguntas(
                 df_clean, _sg("pipe_tipos_sm", {}), _sg("pipe_q0_map", {})
             )
+            # Aberturas não devem virar perguntas tabuladas
+            perguntas_tab = [p for p in perguntas_tab
+                             if p["pergunta"] not in aberturas]
+            _ss("pipe_n_notas", _notas_de_pulo(perguntas_tab))
             # Excel
             with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
                 path_xlsx = tmp.name
             try:
                 exportar_excel(df_clean, perguntas_tab, saida=path_xlsx,
-                               titulo=titulo, total_respostas=len(df_clean))
+                               titulo=titulo, total_respostas=len(df_clean),
+                               aberturas_cols=aberturas or None)
                 _ss("pipe_tab_xlsx", Path(path_xlsx).read_bytes())
             finally:
                 Path(path_xlsx).unlink(missing_ok=True)
@@ -712,7 +876,7 @@ def _etapa5_final():
                     path_ppt = tmp.name
                 try:
                     gerar_ppt(df_clean, perguntas_tab, saida=path_ppt,
-                              titulo=titulo)
+                              titulo=titulo, periodo=periodo or "")
                     _ss("pipe_tab_ppt", Path(path_ppt).read_bytes())
                 finally:
                     Path(path_ppt).unlink(missing_ok=True)
@@ -722,6 +886,9 @@ def _etapa5_final():
         st.rerun()
 
     if _sg("pipe_tab_xlsx"):
+        if _sg("pipe_n_notas"):
+            st.caption(f"Notas de pulo (das regras do questionário) adicionadas "
+                       f"a {_sg('pipe_n_notas')} pergunta(s).")
         st.download_button(
             "Baixar tabulação (.xlsx)",
             data=_sg("pipe_tab_xlsx"),
