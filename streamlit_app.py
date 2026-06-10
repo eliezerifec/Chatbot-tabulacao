@@ -1298,6 +1298,17 @@ def main() -> None:
 
         st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
 
+        # Botao Pipeline completo
+        is_pipe = st.session_state["active_view"] == "pipeline"
+        st.markdown(
+            f'<div class="{"nav-active" if is_pipe else ""}">',
+            unsafe_allow_html=True,
+        )
+        if st.button("Pipeline completo", key="nav_pipe"):
+            st.session_state["active_view"] = "pipeline"
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
         # Botao Codificador
         is_cod = st.session_state["active_view"] == "codificador"
         st.markdown(
@@ -1339,7 +1350,17 @@ def main() -> None:
         st.caption("API: configurada" if api_ok else "API: nao configurada")
 
     # ---- AREA CENTRAL ----
-    if st.session_state["active_view"] == "codificador":
+    if st.session_state["active_view"] == "pipeline":
+        st.markdown('<p class="ifec-page-title">Pipeline completo</p>',
+                    unsafe_allow_html=True)
+        st.markdown(
+            '<p class="ifec-page-sub">Da base bruta do SurveyMonkey à base final '
+            'e tabulação — limpeza, codificação e merge automáticos</p>',
+            unsafe_allow_html=True,
+        )
+        from tela_pipeline import render_pipeline
+        render_pipeline()
+    elif st.session_state["active_view"] == "codificador":
         st.markdown('<p class="ifec-page-title">Codificador</p>', unsafe_allow_html=True)
         st.markdown(
             '<p class="ifec-page-sub">Codificacao de pesquisas com IA</p>',

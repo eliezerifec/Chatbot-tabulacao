@@ -263,13 +263,39 @@ def detectar_perguntas(
         # Com tipos_sm: campo aberto detectado via "ABERTA" (linha 1 = "Open-Ended Response").
         # Sem tipos_sm: usa regex _PAD_OUTRO_COL no nome da coluna.
         if tipos_sm:
-            cols_outros = [c for c in grupo if tipos_sm.get(c) == "ABERTA"]
-            cols_princ  = [c for c in grupo if tipos_sm.get(c) != "ABERTA"]
+            # "Outro(s). Qual?" nem sempre vem como "Open-Ended Response" na
+            # linha 1 do SurveyMonkey — detecta também pelo nome da coluna.
+            cols_outros = [c for c in grupo
+                           if tipos_sm.get(c) == "ABERTA" or _e_outro(c)]
+            cols_princ  = [c for c in grupo if c not in cols_outros]
         else:
             cols_outros = [c for c in grupo if _e_outro(c)]
             cols_princ  = [c for c in grupo if c not in cols_outros]
 
         if not cols_princ:
+            # Pergunta 100% aberta (ex.: subcampos "1:", "2:", "3:") —
+            # tabula as respostas codificadas (_cod) de todas as colunas.
+            if not cols_outros:
+                continue
+            if q0_map:
+                nome_pergunta = (q0_map.get(cols_outros[0], pref) or pref).strip()
+            else:
+                nome_pergunta = pref
+            if nome_pergunta in _IGNORAR:
+                continue
+            cols_cod = [c + "_cod" for c in cols_outros if c + "_cod" in df.columns]
+            perguntas.append({
+                "num":         f"P{num:02d}",
+                "pergunta":    nome_pergunta,
+                "tipo":        "ABERTA",
+                "colunas":     cols_outros,
+                "cols_outros": cols_outros,
+                "col_cod":     cols_cod[0] if cols_cod else None,
+                "cols_cod":    cols_cod,
+                "nota":        _nota_padrao("ABERTA"),
+                "ativo":       True,
+            })
+            num += 1
             continue
 
         # Procurar coluna _cod associada
@@ -357,7 +383,9 @@ def _detectar_tipo(df: pd.DataFrame, raiz: str, cols: list[str],
 
     cols_s = [c for c in cols if not _e_outro(c)]
 
-    if _PAD_MEDIA.search(raiz_l) and cols_s:
+    # MEDIA só vale para pergunta de coluna única; grupos multi-coluna com
+    # escala numérica (ex.: "Classifique de 1 a 5" por item) são GRID.
+    if _PAD_MEDIA.search(raiz_l) and len(cols_s) == 1:
         sample = pd.to_numeric(_col(df, cols_s[0]), errors="coerce").dropna()
         if len(sample) > 0 and sample.mean() > 0:
             return "MEDIA"
@@ -553,10 +581,16 @@ def tabular_ru_rm(df: pd.DataFrame, pergunta: dict) -> pd.DataFrame:
 
 
 def tabular_aberta(df: pd.DataFrame, pergunta: dict, sep: str = ", ") -> pd.DataFrame:
-    col_cod = pergunta.get("col_cod")
-    col     = col_cod if (col_cod and col_cod in df.columns) else pergunta["colunas"][0]
+    # Perguntas abertas com vários subcampos ("1:", "2:", "3:") têm uma coluna
+    # codificada por subcampo — soma as menções de todas.
+    cols = [c for c in (pergunta.get("cols_cod") or []) if c in df.columns]
+    if not cols:
+        col_cod = pergunta.get("col_cod")
+        cols = [col_cod if (col_cod and col_cod in df.columns)
+                else pergunta["colunas"][0]]
 
-    serie = (_col(df, col).dropna().astype(str)
+    series = pd.concat([_col(df, c) for c in cols], ignore_index=True)
+    serie = (series.dropna().astype(str)
              .pipe(lambda s: s[~s.str.strip().isin(["", "-", "nan"])]))
 
     expandido = serie.str.split(sep).explode().str.strip()
@@ -567,7 +601,13 @@ def tabular_aberta(df: pd.DataFrame, pergunta: dict, sep: str = ", ") -> pd.Data
     freq.columns = [" ", "Total"]
     freq["is_sub"] = False
 
-    respondentes = len(serie) or 1
+    # Respondentes = linhas com pelo menos uma resposta em algum subcampo
+    respondida = pd.Series(False, index=df.index)
+    for c in cols:
+        s = _col(df, c)
+        respondida = respondida | (s.notna() & ~s.astype(str).str.strip()
+                                   .isin(["", "-", "nan"]))
+    respondentes = int(respondida.sum()) or 1
     total = pd.DataFrame({" ": ["Total"], "Total": [respondentes], "is_sub": [False]})
     freq  = pd.concat([freq, total], ignore_index=True)
     freq["%"] = freq["Total"].apply(
@@ -1104,6 +1144,9 @@ def exportar_excel(df: pd.DataFrame, perguntas: list[dict],
         c.font = Font(name="Calibri", bold=True, size=10)
     for ri, (_, row_data) in enumerate(df.iterrows(), 2):
         for ci, val in enumerate(row_data, 1):
+            # openpyxl não aceita pd.NA/NaT — escreve célula vazia
+            if val is not None and pd.isna(val):
+                val = None
             ws_base.cell(row=ri, column=ci, value=val)
 
     wb.save(saida)
