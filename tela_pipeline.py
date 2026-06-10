@@ -63,8 +63,16 @@ def _df_para_excel(sheets: dict[str, pd.DataFrame]) -> bytes:
     return bio.getvalue()
 
 
+def _serie_df(df: pd.DataFrame, col: str) -> pd.Series:
+    """Sempre retorna uma Series — primeira ocorrência se a coluna for duplicada."""
+    s = df[col]
+    if isinstance(s, pd.DataFrame):
+        s = s.iloc[:, 0]
+    return s
+
+
 def _ler_base(name: str, data: bytes, two_line: bool):
-    """Lê a base e retorna (df, tipos_sm, q0_map)."""
+    """Lê a base e retorna (df, tipos_sm, q0_map). Garante colunas únicas."""
     from tabulador import set_header
 
     bio = BytesIO(data)
@@ -74,9 +82,19 @@ def _ler_base(name: str, data: bytes, two_line: bool):
         raw = pd.read_excel(bio, header=None, sheet_name=0)
     if two_line:
         return set_header(raw)
-    df = raw.copy()
-    df.columns = [str(c) for c in raw.iloc[0]]
-    return df.iloc[1:].reset_index(drop=True), {}, {}
+
+    df = raw.iloc[1:].reset_index(drop=True)
+    nomes, usados = [], set()
+    for c in raw.iloc[0]:
+        nome = str(c)
+        novo, i = nome, 0
+        while novo in usados:
+            i += 1
+            novo = f"{nome}.{i}"
+        usados.add(novo)
+        nomes.append(novo)
+    df.columns = nomes
+    return df, {}, {}
 
 
 def _sanitize_export_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -121,7 +139,7 @@ def _grupos_abertas(df: pd.DataFrame, perguntas: list[dict]) -> list[dict]:
             continue
         n_resp = 0
         for c in cols:
-            s = df[c]
+            s = _serie_df(df, c)
             n_resp += int((s.notna() & ~s.astype(str).str.strip()
                            .isin(["", "-", "nan"])).sum())
         if n_resp == 0:
@@ -458,7 +476,7 @@ def _rodar_codificacao(df: pd.DataFrame, selecionados: list, contexto: str):
         celulas: list[tuple] = []   # (row_idx, col)
         respostas: list[str] = []
         for col in grupo["cols"]:
-            serie = df[col]
+            serie = _serie_df(df, col)
             mask = serie.notna() & ~serie.astype(str).str.strip().isin(["", "-", "nan"])
             for idx in df.index[mask]:
                 celulas.append((idx, col))
@@ -585,11 +603,12 @@ def _etapa4_categorias():
             for c in grupo["cols"]:
                 if c not in coded:
                     continue
+                serie_orig = _serie_df(df, c)
                 mask = coded[c].astype(str).str.contains(
                     str(cat_ver), case=False, na=False, regex=False)
                 for idx in df.index[mask.reindex(df.index, fill_value=False)]:
                     linhas.append({
-                        "Resposta original": df.at[idx, c],
+                        "Resposta original": serie_orig.at[idx],
                         "Categoria(s)": coded[c].at[idx],
                     })
             st.dataframe(pd.DataFrame(linhas).head(200),

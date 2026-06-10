@@ -62,7 +62,7 @@ def _valores_observados(df: pd.DataFrame, pergunta: dict, max_vals: int = 12) ->
     for col in pergunta.get("colunas", []):
         if col not in df.columns:
             continue
-        serie = df[col].dropna().astype(str).str.strip()
+        serie = _serie(df, col).dropna().astype(str).str.strip()
         for v in serie.unique():
             if v.lower() not in _VAZIOS and v not in vals:
                 vals.append(v)
@@ -220,6 +220,20 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", str(s)).strip().casefold()
 
 
+def _serie(df: pd.DataFrame, col: str) -> pd.Series:
+    """Sempre retorna uma Series — primeira ocorrência se a coluna for duplicada."""
+    s = df[col]
+    if isinstance(s, pd.DataFrame):
+        s = s.iloc[:, 0]
+    return s
+
+
+def _mascara_preenchida(df: pd.DataFrame, col: str) -> pd.Series:
+    """Linhas em que a célula da coluna tem conteúdo de verdade."""
+    s = _serie(df, col)
+    return s.notna() & ~s.astype(str).str.strip().str.lower().isin(_VAZIOS)
+
+
 def _pergunta_por_num(perguntas: list[dict], num: str) -> dict | None:
     for p in perguntas:
         if p["num"] == num:
@@ -228,8 +242,14 @@ def _pergunta_por_num(perguntas: list[dict], num: str) -> dict | None:
 
 
 def _cols_da_pergunta(pergunta: dict, df: pd.DataFrame) -> list[str]:
-    """Todas as colunas da pergunta presentes na base (fechadas + 'Outro')."""
-    cols = list(pergunta.get("colunas", [])) + list(pergunta.get("cols_outros", []))
+    """
+    Todas as colunas da pergunta presentes na base (fechadas + 'Outro'),
+    sem repetição — em perguntas 100% abertas, 'colunas' e 'cols_outros'
+    são a mesma lista.
+    """
+    cols = dict.fromkeys(
+        list(pergunta.get("colunas", [])) + list(pergunta.get("cols_outros", []))
+    )
     return [c for c in cols if c in df.columns]
 
 
@@ -246,7 +266,7 @@ def _mascara_condicao(df: pd.DataFrame, pergunta: dict, valores: list[str]) -> p
     for col in pergunta.get("colunas", []):
         if col not in df.columns:
             continue
-        serie = df[col].astype(str).map(_norm)
+        serie = _serie(df, col).astype(str).map(_norm)
         casou = serie.isin(alvo_norm)
         if not casou.any():
             for v in alvo_norm:
@@ -259,9 +279,8 @@ def _mascara_condicao(df: pd.DataFrame, pergunta: dict, valores: list[str]) -> p
 def _mascara_respondida(df: pd.DataFrame, cols: list[str]) -> pd.Series:
     """Linhas com pelo menos uma resposta nas colunas dadas."""
     mascara = pd.Series(False, index=df.index)
-    for col in cols:
-        preenchida = df[col].notna() & ~df[col].astype(str).str.strip().str.lower().isin(_VAZIOS)
-        mascara = mascara | preenchida
+    for col in dict.fromkeys(cols):
+        mascara = mascara | _mascara_preenchida(df, col)
     return mascara
 
 
@@ -286,12 +305,9 @@ def avaliar_regras(df: pd.DataFrame, perguntas: list[dict],
 
         violacao = cond & _mascara_respondida(df, cols_alvo)
         n_celulas = 0
-        if violacao.any() and cols_alvo:
-            bloco = df.loc[violacao, cols_alvo]
-            n_celulas = int(
-                (bloco.notna() & ~bloco.astype(str).apply(
-                    lambda s: s.str.strip().str.lower().isin(_VAZIOS))).sum().sum()
-            )
+        if violacao.any():
+            for c in dict.fromkeys(cols_alvo):
+                n_celulas += int((_mascara_preenchida(df, c) & violacao).sum())
 
         linhas.append({
             "id": r["id"],
@@ -324,7 +340,7 @@ def aplicar_limpeza(
     df_limpo = df.copy()
     acoes: list[dict] = []
 
-    ids = (df_limpo[col_id].astype(str) if col_id in df_limpo.columns
+    ids = (_serie(df_limpo, col_id).astype(str) if col_id in df_limpo.columns
            else pd.Series(df_limpo.index.astype(str), index=df_limpo.index))
 
     # ── Regras de pulo: apaga respostas em perguntas que deviam ser puladas ──
@@ -347,12 +363,10 @@ def aplicar_limpeza(
 
         respondida = _mascara_respondida(df_limpo, cols_alvo)
         violacao = cond & respondida
+        cols_alvo = list(dict.fromkeys(cols_alvo))
+        preench_por_col = {c: _mascara_preenchida(df_limpo, c) for c in cols_alvo}
         for idx in df_limpo.index[violacao]:
-            preenchidas = [
-                c for c in cols_alvo
-                if pd.notna(df_limpo.at[idx, c])
-                and _norm(df_limpo.at[idx, c]) not in _VAZIOS
-            ]
+            preenchidas = [c for c in cols_alvo if preench_por_col[c].at[idx]]
             celulas_limpas += len(preenchidas)
             acoes.append({
                 "respondente": ids.at[idx],
@@ -367,7 +381,8 @@ def aplicar_limpeza(
     # ── Duplicados pelo id do respondente ────────────────────────────────────
     linhas_duplicadas = 0
     if remover_duplicados and col_id in df_limpo.columns:
-        dup = df_limpo[col_id].duplicated(keep="first") & df_limpo[col_id].notna()
+        serie_id = _serie(df_limpo, col_id)
+        dup = serie_id.duplicated(keep="first") & serie_id.notna()
         linhas_duplicadas = int(dup.sum())
         for idx in df_limpo.index[dup]:
             acoes.append({

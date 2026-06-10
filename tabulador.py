@@ -71,15 +71,18 @@ def set_header(
         cols.append(combined.strip())
 
     df = df_raw.iloc[2:].copy().reset_index(drop=True)
+    # Deduplicação à prova de colisão: o sufixo gerado ("X.1") pode coincidir
+    # com um nome que já existe na base — incrementa até ficar único.
     seen: dict[str, int] = {}
+    usados: set[str] = set()
     unique_cols: list[str] = []
     for c in cols:
-        if c in seen:
-            seen[c] += 1
-            unique_cols.append(f"{c}.{seen[c]}")
-        else:
-            seen[c] = 0
-            unique_cols.append(c)
+        novo = c
+        while novo in usados:
+            seen[c] = seen.get(c, 0) + 1
+            novo = f"{c}.{seen[c]}"
+        usados.add(novo)
+        unique_cols.append(novo)
     df.columns = unique_cols
 
     tipos_sm: dict[str, str] = {}
